@@ -3,6 +3,8 @@ import numpy as np
 from sklearn import datasets, linear_model
 from sklearn.metrics import mean_squared_error, r2_score
 
+# using: https://scikit-learn.org/stable/auto_examples/linear_model/plot_ols.html
+
 
 def splitter(values):
     # generate a vector, split into n chunks, fill in [values] for each
@@ -75,50 +77,40 @@ cloud_escalations = escalation_count
 cloud_teams = splitter([2, 3])
 cloud_age = increment_splitter([2, 3, 2], 130)
 
-exit()
-## show data
-plt.scatter(days, ticket_count, color="black")
-plt.scatter(days, escalation_count, color="red")
-plt.show()
-
-# input()
-# exit()
-
-
-# Load the diabetes dataset
-diabetes_X, diabetes_y = datasets.load_diabetes(return_X_y=True)
-print(np.shape(datasets.load_diabetes))
-
-# Use only one feature
-diabetes_X = diabetes_X[:, np.newaxis, 2]
+cloud_data = np.array(
+    [cloud_tickets, cloud_escalations, cloud_teams, cloud_age]
+)  # placeholder, not shaped correctly
 
 # Split the data into training/testing sets
-diabetes_X_train = diabetes_X[:-20]
-diabetes_X_test = diabetes_X[-20:]
+cloud_train_x = cloud_tickets[:72]
+cloud_test_x = cloud_tickets[72:]
 
 # Split the targets into training/testing sets
-diabetes_y_train = diabetes_y[:-20]
-diabetes_y_test = diabetes_y[-20:]
+cloud_train_y = cloud_escalations[:72]
+cloud_test_y = cloud_tickets[72:]
 
 # Create linear regression object
 regr = linear_model.LinearRegression()
 
 # Train the model using the training sets
-regr.fit(diabetes_X_train, diabetes_y_train)
+regr.fit(
+    cloud_train_x.reshape(-1, 1), cloud_train_y.reshape(-1, 1)
+)  # -1, 1 because it's single-dimension (arbitrary)
 
 # Make predictions using the testing set
-diabetes_y_pred = regr.predict(diabetes_X_test)
+cloud_pred_y = regr.predict(cloud_test_x.reshape(-1, 1))
 
+## these don't prove much, just an example.
 # The coefficients
 print("Coefficients: \n", regr.coef_)
 # The mean squared error
-print("Mean squared error: %.2f" % mean_squared_error(diabetes_y_test, diabetes_y_pred))
+print("Mean squared error: %.2f" % mean_squared_error(cloud_test_y, cloud_pred_y))
 # The coefficient of determination: 1 is perfect prediction
-print("Coefficient of determination: %.2f" % r2_score(diabetes_y_test, diabetes_y_pred))
+print("Coefficient of determination: %.2f" % r2_score(cloud_test_y, cloud_pred_y))
 
 # Plot outputs
-plt.scatter(diabetes_X_test, diabetes_y_test, color="black")
-plt.plot(diabetes_X_test, diabetes_y_pred, color="blue", linewidth=3)
+plt.scatter(cloud_test_x, cloud_test_y.reshape(-1, 1), color="black")
+plt.plot(cloud_test_x, cloud_pred_y.reshape(-1, 1), color="blue", linewidth=3)
 
 plt.xticks(())
 plt.yticks(())
