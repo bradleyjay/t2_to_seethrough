@@ -1,4 +1,5 @@
 venv
 creds.dat
 *.csv
+*.dat
 ceciles_apm/

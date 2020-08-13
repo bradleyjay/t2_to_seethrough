@@ -157,6 +157,26 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
         pass
         exit()
     # write ttfl data
+    
+    '''
+What we have above is a dict (ttft_dict) where the keys are the date of first touch, and the data
+is a list of the delta between creation date and first comment.
+
+So, at the EoD, avg(bucket) is the TTFT for the day, and count(bucket) is how many first touches we had that day.
+
+Later, it might be useful to bucket by CREATION DATE, to say "cards createdd on this day were touched on avg 5 days later". But, LATER
+
+Next steps:
+
+- make sure TTFT is getting stored in the dict
+- right now, creation date for the card and comments ignores timezone at ingestion. Ingest, make it utc, use that date instead.
+- After all days have been queried, iterate through possible dates, mapping to a csv output. Date, number of first touches, avg time per,
+max time per. If no first touches that day, fill it in, end result should be a spreadsheet of every day, with data for every day.
+
+(note that any escalation untouched is ~tossed out, atm. No handling above for a "no comments" or "no comments
+by not the requester", around line 154)
+
+    '''
 
 
 print("\nQuerying: " + board_name)
