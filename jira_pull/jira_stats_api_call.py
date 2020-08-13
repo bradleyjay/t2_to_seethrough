@@ -52,6 +52,7 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
     concerneddate = today - datetime.timedelta(days=nb_days_before)
     dconcerneddate = concerneddate.strftime("%m/%d/%Y")
     total = response.json()["total"]
+    # print(response.json())
 
     # max returned issues is 50 - throw a warning if that's the case
     if int(total) >= 50:

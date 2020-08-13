@@ -12,3 +12,7 @@ Files:
 To run:
 1. `chmod +x launch_api_calls.sh`
 2. `./launch_api_calls.sh`
+
+When each has finished, run:
+
+3. cat *.csv >> allBoardsReport.csv
