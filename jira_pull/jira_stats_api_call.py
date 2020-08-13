@@ -17,6 +17,8 @@ except:
 nb_days_before = int(1)  # place holder
 start_days_ago = 90
 headers = {"Accept": "application/json"}
+ttfl_dict = {}
+issues_dict = {}
 
 # prep dates
 today = datetime.datetime.utcnow().date()
@@ -54,8 +56,8 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
     total = response.json()["total"]
     # print(response.json())
 
-    # max returned issues is 50 - throw a warning if that's the case
-    if int(total) >= 50:
+    # max returned issues is 100 - throw a warning if that's the case
+    if int(total) >= 100:
         print(
             "\nWarning: Max Issues returned - possible truncation on "
             + str(dconcerneddate)
@@ -65,19 +67,75 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
     # print(response.json()["total"])
     # print(len(response.json()["issues"]))
 
+    # debug mode - print raw JSON response to file, appending each day.
+
+    f = open("testdump.dat", "a+")
+    f.write(json.dumps(response.json(), indent=4, separators=(",", ": ")))
+    f.close()
+
+    # write issue count
     f = open(filename, "a+")
     # f.write(json.dumps(response.json(), indent=4, separators=(",", ": ")))
     f.write("%s;%s;%d;%s  \r\n" % (name, dconcerneddate, total, board_name))
     f.close()
 
+    # TTFL
+    # unpack issues into list: need issue id, created date, creator
+
+    for issue in response.json()["issues"]:
+        issue_id = issue["id"]
+        issue_reporter = issue["fields"]["reporter"]["emailAddress"]
+        issue_created = issue["fields"]["created"]
+
+        issues_dict[issue_id] = {
+            "issue_id": issue_id,
+            "issue_reporter": issue_reporter,
+            "issue_created": issue_created,
+        }
+
+        # test. WORKS!
+        # exit()
+        print(issues_dict)
+        
+        # API Call for Comments
+        url = (
+            "https://datadoghq.atlassian.net/rest/api/2/issue/"
+            + issue_id
+            + "/comment"
+            # + "&maxResults=0"
+        )
+        
+        # "https://datadoghq.atlassian.net/rest/api/2/issue/81840/comment"
+        comments_response = requests.request("GET", url, headers=headers, auth=auth)
+        input("Comments Response:")
+        print(comments_response)
+
+        for comment in comments_response.json()["comments"]:
+            # comments are a LIST, ordered by time
+            print(comment["created"])
+            
+            # now, do the thing: 
+
+            # iterate til author != issue author
+
+            # take date, parse to simpler date? (this'll be our TTFT dict key)
+            
+            # get time delta for comment created - issue created -> append that to dict's value,
+            # under TTFT date
+            
+        exit()
+    # write ttfl data
+
 
 print("\nQuerying: " + board_name)
+
 
 for nb_days_before in range(start_days_ago, -1, -1):
 
     # Update JQL queries:
 
     # includes feature requests, if they started in Triage
+    # conservative: Escalation Batter won't show, because they'll create then later Batter=No
     # issues now hidden by the DONE column do show up in this count!
     QUERY_CREATED_IN_TRIAGE = (
         "project ="

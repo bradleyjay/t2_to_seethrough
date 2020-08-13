@@ -1,12 +1,15 @@
 #!/bin/bash
 
 source creds.dat
-while IFS= read -r line; do
-# echo $line
+python3 jira_stats_api_call.py METS
 
-  # for i in `seq 1 3`;
-    # do
-  python3 jira_stats_api_call.py $line &
-    # done
+# while IFS= read -r line; do
+# # echo $line
 
-done < board_list.dat
+#   # for i in `seq 1 3`;
+#     # do
+#   # python3 jira_stats_api_call.py $line &
+#   # python3 jira_stats_api_call.py METS # debug mode - just METS, foreground
+#     # done
+
+# done < board_list.dat
