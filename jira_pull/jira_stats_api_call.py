@@ -17,7 +17,7 @@ except:
 nb_days_before = int(1)  # place holder
 start_days_ago = 90
 headers = {"Accept": "application/json"}
-ttfl_dict = {}
+ttft_dict = {}
 issues_dict = {}
 
 # prep dates
@@ -85,7 +85,10 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
     for issue in response.json()["issues"]:
         issue_id = issue["id"]
         issue_reporter = issue["fields"]["reporter"]["emailAddress"]
-        issue_created = issue["fields"]["created"]
+
+        # hacky
+        raw_issue_created = issue["fields"]["created"]
+        issue_created = datetime.datetime.strptime(raw_issue_created.split('T')[0], "%Y-%m-%d")
 
         issues_dict[issue_id] = {
             "issue_id": issue_id,
@@ -110,19 +113,48 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
         input("Comments Response:")
         print(comments_response)
 
+        ttft = None
+        delta_time = None
+
         for comment in comments_response.json()["comments"]:
             # comments are a LIST, ordered by time
-            print(comment["created"])
+            print(comment["author"]["emailAddress"])
             
             # now, do the thing: 
-
             # iterate til author != issue author
+            if comment["author"]["emailAddress"] == issue_reporter:
+                continue
 
             # take date, parse to simpler date? (this'll be our TTFT dict key)
+            print(comment["created"])
+            comment_date = comment["created"]
+            # THIS IGNORES TIMEZONE: get the %z via split or something first, and convert in datetime
+            date_time_obj = datetime.datetime.strptime(comment_date.split('T')[0], "%Y-%m-%d")
+            print(date_time_obj)
             
-            # get time delta for comment created - issue created -> append that to dict's value,
-            # under TTFT date
+            # get time delta for comment created - issue created 
+            delta_time = (date_time_obj - issue_created).days
+            print("Delta, in days:")
+            print(delta_time)
             
+            print(str(issue_created.date()))
+            # -> append that to dict's value, under TTFT date
+            # first check if its there. Yes? Append.
+            if str(issue_created.date()) in ttft_dict:
+                # ttft_dict[str(issue_created.date())] = ttft_dict[str(issue_created.date())].append(str(issue_created.date()))
+                ttft_dict[str(issue_created.date())] = ttft_dict[str(issue_created.date())].append([4])  # a None ends up here....how?
+                # print(ttft_dict[str(issue_created.date())].type())
+                print(ttft_dict)  
+                print('fine')
+            else:
+                ttft_dict[str(issue_created.date())] = [str(issue_created.date())]
+                    # str(delta_time)
+
+            # exit()
+        # handling for no comment matching 
+        print("TTFT Dict:")
+        print(ttft_dict)
+        pass
         exit()
     # write ttfl data
 
