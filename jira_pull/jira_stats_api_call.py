@@ -5,6 +5,7 @@ from requests.auth import HTTPBasicAuth
 from datetime import date
 import datetime
 import sys
+import copy
 
 
 # input, initialization
@@ -30,6 +31,7 @@ filename = str(board_name + "_" + filename_today + ".csv")
 
 try:
     os.remove(filename)
+    os.remove(testdump.dat)
 except:
     print("(No " + board_name + "results files to delete.)")
 
@@ -84,22 +86,26 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
 
     for issue in response.json()["issues"]:
         issue_id = issue["id"]
+        issue_key = issue["key"]
         issue_reporter = issue["fields"]["reporter"]["emailAddress"]
 
         # hacky
         raw_issue_created = issue["fields"]["created"]
-        issue_created = datetime.datetime.strptime(raw_issue_created.split('T')[0], "%Y-%m-%d")
+        issue_created = datetime.datetime.strptime(
+            raw_issue_created.split("T")[0], "%Y-%m-%d"
+        )
 
         issues_dict[issue_id] = {
             "issue_id": issue_id,
             "issue_reporter": issue_reporter,
             "issue_created": issue_created,
+            "issue_key": issue_key,
         }
 
         # test. WORKS!
         # exit()
-        print(issues_dict)
-        
+        # print(issues_dict)
+
         # API Call for Comments
         url = (
             "https://datadoghq.atlassian.net/rest/api/2/issue/"
@@ -107,81 +113,101 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
             + "/comment"
             # + "&maxResults=0"
         )
-        
+
         # "https://datadoghq.atlassian.net/rest/api/2/issue/81840/comment"
         comments_response = requests.request("GET", url, headers=headers, auth=auth)
-        input("Comments Response:")
-        print(comments_response)
+        # input("Comments Response:")
+        # print(comments_response)
 
-        ttft = None
         delta_time = None
 
         for comment in comments_response.json()["comments"]:
             # comments are a LIST, ordered by time
-            print(comment["author"]["emailAddress"])
-            
-            # now, do the thing: 
+            # print(comment["author"]["emailAddress"])
+
+            # now, do the thing:
             # iterate til author != issue author
             if comment["author"]["emailAddress"] == issue_reporter:
                 continue
 
             # take date, parse to simpler date? (this'll be our TTFT dict key)
-            print(comment["created"])
-            comment_date = comment["created"]
+            # print(comment["created"])
+            raw_comment_date = comment["created"]
             # THIS IGNORES TIMEZONE: get the %z via split or something first, and convert in datetime
-            date_time_obj = datetime.datetime.strptime(comment_date.split('T')[0], "%Y-%m-%d")
-            print(date_time_obj)
-            
-            # get time delta for comment created - issue created 
-            delta_time = (date_time_obj - issue_created).days
-            print("Delta, in days:")
-            print(delta_time)
-            
-            print(str(issue_created.date()))
+            comment_date = datetime.datetime.strptime(
+                raw_comment_date.split("T")[0], "%Y-%m-%d"
+            )
+            # print(comment_date)
+
+            # get time delta for comment created - issue created
+            delta_time = (comment_date - issue_created).days
+            # print("Delta, in days:")
+            # print(delta_time)
+
+            # print(str(issue_created.date()))
             # -> append that to dict's value, under TTFT date
             # first check if its there. Yes? Append.
-            if str(issue_created.date()) in ttft_dict:
+            if str(comment_date.date()) in ttft_dict:
+
+                print("ttft dict update")
                 # ttft_dict[str(issue_created.date())] = ttft_dict[str(issue_created.date())].append(str(issue_created.date()))
-                ttft_dict[str(issue_created.date())] = ttft_dict[str(issue_created.date())].append([4])  # a None ends up here....how?
+                # a = copy.deepcopy(ttft_dict[str(issue_created.date())])
+                # a = ttft_dict[str(issue_created.date())]
+                # print(type(a))
+                # a.append([4])
+                ttft_dict[str(comment_date.date())].append((issue_key, delta_time))
+                # print(a)
+                # .append([4])
+                # a None ends up here....how?
                 # print(ttft_dict[str(issue_created.date())].type())
-                print(ttft_dict)  
-                print('fine')
+                print(ttft_dict)
+                break
+
             else:
-                ttft_dict[str(issue_created.date())] = [str(issue_created.date())]
-                    # str(delta_time)
+                print("First ttft dict")
+                ttft_dict[str(comment_date.date())] = [(issue_key, delta_time)]
+                print(ttft_dict)
+                break
+                # str(delta_time)
 
             # exit()
-        # handling for no comment matching 
+        # handling for no comment matching
+        if delta_time == None:
+            print("no matching comment for issue" + str(issue_key))
         print("TTFT Dict:")
         print(ttft_dict)
         pass
-        exit()
+        # exit()
     # write ttfl data
-    
-    '''
+
+    """
 What we have above is a dict (ttft_dict) where the keys are the date of first touch, and the data
-is a list of the delta between creation date and first comment.
+is a list of tuples (issue key, the delta between creation date and first comment).
 
 So, at the EoD, avg(bucket) is the TTFT for the day, and count(bucket) is how many first touches we had that day.
 
-Later, it might be useful to bucket by CREATION DATE, to say "cards createdd on this day were touched on avg 5 days later". But, LATER
+Later, it might be useful to bucket by CREATION DATE, to say "cards createdd on this day were touched on avg 5 days later". 
+But, LATER
 
 Next steps:
 
-- make sure TTFT is getting stored in the dict
+- note: safety is on -> start_days_ago = 10 on 210 below
+- make sure TTFT is getting stored in the dict [x]
 - right now, creation date for the card and comments ignores timezone at ingestion. Ingest, make it utc, use that date instead.
-- After all days have been queried, iterate through possible dates, mapping to a csv output. Date, number of first touches, avg time per,
-max time per. If no first touches that day, fill it in, end result should be a spreadsheet of every day, with data for every day.
+- Write to CSV: After all days have been queried, iterate through possible dates, mapping to a csv output. 
+Date, number of first touches, avg time per, max time per. If no first touches that day, 
+fill it in, end result should be a spreadsheet of every day, with data for every day.
+- general cleanup. there's a lot of variables getting converted, or called with .date() etc, repeatly.
 
 (note that any escalation untouched is ~tossed out, atm. No handling above for a "no comments" or "no comments
 by not the requester", around line 154)
 
-    '''
+    """
 
 
 print("\nQuerying: " + board_name)
 
-
+start_days_ago = 10
 for nb_days_before in range(start_days_ago, -1, -1):
 
     # Update JQL queries:
@@ -214,4 +240,4 @@ for nb_days_before in range(start_days_ago, -1, -1):
         print(board_name + ": " + str(percent_done) + "% \n", end=" ", flush=True)
 
 print(board_name + " API query complete: " + filename + " finished.")
-
+print(ttft_dict)
