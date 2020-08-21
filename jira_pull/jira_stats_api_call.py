@@ -2,7 +2,7 @@ import requests
 import json
 import os
 from requests.auth import HTTPBasicAuth
-from datetime import date
+from datetime import date, timezone
 import datetime
 import sys
 import copy
@@ -23,7 +23,7 @@ ttft_dict = {}
 issues_dict = {}
 
 # prep dates
-today = datetime.datetime.utcnow().date()
+today = datetime.datetime.now(datetime.timezone.utc).date()  # now has tz
 dtoday = today.strftime("%m/%d/%Y")
 filename_today = today.strftime("%m-%d-%Y")
 
@@ -51,7 +51,6 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
     concerneddate = today - datetime.timedelta(days=nb_days_before)
     dconcerneddate = concerneddate.strftime("%m/%d/%Y")
     total = response.json()["total"]
-    # print(response.json())
 
     # max returned issues is 100 - throw a warning if that's the case
     if int(total) >= 100:
@@ -61,14 +60,11 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
             + ". Value is "
             + str(total)
         )
-    # print(response.json()["total"])
-    # print(len(response.json()["issues"]))
 
     # debug mode - print raw JSON response to file, appending each day.
-
-    f = open("testdump.dat", "a+")
-    f.write(json.dumps(response.json(), indent=4, separators=(",", ": ")))
-    f.close()
+    # f = open("testdump.dat", "a+")
+    # f.write(json.dumps(response.json(), indent=4, separators=(",", ": ")))
+    # f.close()
 
     # write issue count
     f = open(filename, "a+")
@@ -84,10 +80,12 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
         issue_key = issue["key"]
         issue_reporter = issue["fields"]["reporter"]["emailAddress"]
 
-        # hacky
+        # pull created date. Format: 2020-05-25T21:04:18.666-0400
         raw_issue_created = issue["fields"]["created"]
+
+        # parse to datetime object (includes tz)
         issue_created = datetime.datetime.strptime(
-            raw_issue_created.split("T")[0], "%Y-%m-%d"
+            raw_issue_created, "%Y-%m-%dT%H:%M:%S.%f%z"
         )
 
         issues_dict[issue_id] = {
@@ -97,11 +95,8 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
             "issue_key": issue_key,
         }
 
-        # test. WORKS!
-        # exit()
-        # print(issues_dict)
-
         # API Call for Comments
+        # Format: "https://datadoghq.atlassian.net/rest/api/2/issue/81840/comment"
         url = (
             "https://datadoghq.atlassian.net/rest/api/2/issue/"
             + issue_id
@@ -109,69 +104,43 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
             # + "&maxResults=0"
         )
 
-        # "https://datadoghq.atlassian.net/rest/api/2/issue/81840/comment"
         comments_response = requests.request("GET", url, headers=headers, auth=auth)
-        # input("Comments Response:")
-        # print(comments_response)
-
         delta_time = None
 
         for comment in comments_response.json()["comments"]:
-            # comments are a LIST, ordered by time
-            # print(comment["author"]["emailAddress"])
 
-            # now, do the thing:
+            # comments are a LIST, ordered by time
             # iterate til author != issue author
             if comment["author"]["emailAddress"] == issue_reporter:
                 continue
 
-            # take date, parse to simpler date? (this'll be our TTFT dict key)
-            # print(comment["created"])
+            # take date, parse to simpler date (this'll be our TTFT dict key)
             raw_comment_date = comment["created"]
-            # THIS IGNORES TIMEZONE: get the %z via split or something first, and convert in datetime
+
+            # get time delta for (comment created - issue created)
+            # includes tz
             comment_date = datetime.datetime.strptime(
-                raw_comment_date.split("T")[0], "%Y-%m-%d"
+                raw_comment_date, "%Y-%m-%dT%H:%M:%S.%f%z"
             )
-            # print(comment_date)
-
-            # get time delta for comment created - issue created
             delta_time = (comment_date - issue_created).days
-            # print("Delta, in days:")
-            # print(delta_time)
 
-            # print(str(issue_created.date()))
             # -> append that to dict's value, under TTFT date
             # first check if its there. Yes? Append.
             if str(comment_date.date()) in ttft_dict:
 
-                print("ttft dict update")
-                # ttft_dict[str(issue_created.date())] = ttft_dict[str(issue_created.date())].append(str(issue_created.date()))
-                # a = copy.deepcopy(ttft_dict[str(issue_created.date())])
-                # a = ttft_dict[str(issue_created.date())]
-                # print(type(a))
-                # a.append([4])
                 ttft_dict[str(comment_date.date())].append((issue_key, delta_time))
-                # print(a)
-                # .append([4])
-                # a None ends up here....how?
-                # print(ttft_dict[str(issue_created.date())].type())
-                print(ttft_dict)
-                break
 
             else:
-                print("First ttft dict")
-                ttft_dict[str(comment_date.date())] = [(issue_key, delta_time)]
-                print(ttft_dict)
-                break
-                # str(delta_time)
 
-            # exit()
-        # handling for no comment matching
+                ttft_dict[str(comment_date.date())] = [(issue_key, delta_time)]
+                break
+
+        # handling for no comment matching (orphaned case)
         if delta_time == None:
+            # theres a LOT of these.... #fixme
             print("no matching comment for issue" + str(issue_key))
-        print("TTFT Dict:")
-        print(ttft_dict)
-        pass
+        # print("TTFT Dict:")
+        # print(ttft_dict)
 
     return ttft_dict
     """
@@ -189,7 +158,7 @@ Next steps:
 # - note: safety is on -> start_days_ago = 10 on 210 below
 - make sure TTFT is getting stored in the dict [x]
 - right now, creation date for the card and comments ignores timezone at ingestion. Ingest, make it utc, 
-use that date instead. [do last ]
+use that date instead. [ x ]
 - Write to CSV: After all days have been queried, iterate through possible dates, mapping to a csv output. 
 Date, number of first touches, avg time per, max time per. If no first touches that day, 
 fill it in, end result should be a spreadsheet of every day, with data for every day. [x]
@@ -211,6 +180,8 @@ for nb_days_before in range(start_days_ago, -1, -1):
     # includes feature requests, if they started in Triage
     # conservative: Escalation Batter won't show, because they'll create then later Batter=No
     # issues now hidden by the DONE column do show up in this count!
+    # batter issues could be included by were batter, now aren't, same day. As an aside, there's LOTS of chaff in
+    # these boards. Over-filtering is probably good, especially for untouched issues.
     QUERY_CREATED_IN_TRIAGE = (
         "project ="
         + board_name
@@ -227,8 +198,6 @@ for nb_days_before in range(start_days_ago, -1, -1):
     ttft_dict = jira_query(
         board_name, QUERY_CREATED_IN_TRIAGE, nb_days_before, "New Issues"
     )
-    # jqlquery = QUERY_CARDS_MOVED_TO_TRIAGE
-    # print(nb_days_before)
 
     # report progress
     percent_done = ((start_days_ago - nb_days_before) / start_days_ago) * 100
@@ -244,28 +213,24 @@ f = open(ttft_file, "a+")
 name = "TTFT"
 for nb_days_before in range(start_days_ago, -1, -1):
     concerneddate = today - datetime.timedelta(days=nb_days_before)
-    # dconcerneddate = concerneddate.strftime("%m/%d/%Y")
     target_date = str(concerneddate)
-    print("Target Date:" + target_date)
-    print("pre-loop")
 
     # if present, pull and unpack
     if target_date in ttft_dict:
+
         # get (issue key, ttft) pairs:
         points_from_date = ttft_dict[target_date]
-        print("Got one!")
 
         # get count
         ttft_count = len(points_from_date)
+
     # if not, prepare a zero for stats
     else:
         points_from_date = [("n/a", 0)]
 
-        # get count
+        # set count
         ttft_count = 0
-        print("Null time!")
 
-    print(points_from_date)
     # extract just the ttft values:
     ttft_values = [point[1] for point in points_from_date]
 
@@ -273,17 +238,6 @@ for nb_days_before in range(start_days_ago, -1, -1):
     ttft_avg = mean(ttft_values)
     ttft_max = max(ttft_values)
 
-    print(
-        "Stats (avg, max, count):"
-        + str(ttft_avg)
-        + "  "
-        + str(ttft_max)
-        + "  "
-        + str(ttft_count)
-    )
-    print("post-loop")
-
-    # f.write(json.dumps(response.json(), indent=4, separators=(",", ": ")))
     f.write(
         "%s;%s;%s;%d;%d;%d;%s  \r\n"
         % (
