@@ -8,11 +8,13 @@ Files:
 - `jira_stats_api_call.py`: Python API query script
 - `board_list.dat`: list of Jira projects to query
 - `creds.dat`: API token and user email credentials.
+- `combine_reports.sh`: final data generation script
+- `allBoardsReport.csv`: final data
 
 To run:
-1. `chmod +x launch_api_calls.sh`
+1. `chmod +x launch_api_calls.sh combine_reports.sh`
 2. `./launch_api_calls.sh`
 
 When each has finished, run:
 
-3. cat *.csv >> allBoardsReport.csv
+3. `./combine_reports.sh`
