@@ -12,6 +12,7 @@ from statistics import mean
 # input, initialization
 try:
     board_name = sys.argv[1]
+    print(board_name)
 except:
     print("Error: list of boards missing.")
     exit()
@@ -21,6 +22,17 @@ start_days_ago = 90
 headers = {"Accept": "application/json"}
 ttft_dict = {}
 issues_dict = {}
+orphans = []
+
+# store by touch date, or card creation date?
+ttft_storebytouch = False
+
+# Eng only support board? Check eenginneering triage
+# serveerless, security
+if board_name in ["SLES", "SCRS", "PRMS", "WEBINT"]:
+    target_column = "Engineering Triage"
+else:
+    target_column = "T2 Triage"
 
 # prep dates
 today = datetime.datetime.now(datetime.timezone.utc).date()  # now has tz
@@ -78,7 +90,12 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
     for issue in response.json()["issues"]:
         issue_id = issue["id"]
         issue_key = issue["key"]
-        issue_reporter = issue["fields"]["reporter"]["emailAddress"]
+        try:
+            issue_reporter = issue["fields"]["reporter"]["emailAddress"]
+        except:
+            print("\n\n Trouble here! \n\n")
+            print(issue_key)
+            continue
 
         # pull created date. Format: 2020-05-25T21:04:18.666-0400
         raw_issue_created = issue["fields"]["created"]
@@ -124,6 +141,10 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
             )
             delta_time = (comment_date - issue_created).days
 
+            # if we're storinng TTFT by CREATION DATE, swap the date here now that deltaT is calculated
+            if ttft_storebytouch is False:
+                comment_date = issue_created
+
             # -> append that to dict's value, under TTFT date
             # first check if its there. Yes? Append.
             if str(comment_date.date()) in ttft_dict:
@@ -138,7 +159,11 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
         # handling for no comment matching (orphaned case)
         if delta_time == None:
             # theres a LOT of these.... #fixme
-            print("no matching comment for issue" + str(issue_key))
+            print("\nNo matching comment for issue " + str(issue_key))
+            delta_time = (today - issue_created.date()).days
+            ttft_dict[str(issue_created.date())] = [(issue_key, delta_time)]
+            orphans.append([(issue_key, delta_time)])
+
         # print("TTFT Dict:")
         # print(ttft_dict)
 
@@ -182,10 +207,13 @@ for nb_days_before in range(start_days_ago, -1, -1):
     # issues now hidden by the DONE column do show up in this count!
     # batter issues could be included by were batter, now aren't, same day. As an aside, there's LOTS of chaff in
     # these boards. Over-filtering is probably good, especially for untouched issues.
+    # tl;dr grabs issues created on SEARCHED DATE
     QUERY_CREATED_IN_TRIAGE = (
         "project ="
         + board_name
-        + ' and "For Escalation Batter?" =No AND ( status was "T2 TRIAGE"  during (startOfDay(-'
+        + ' and "For Escalation Batter?" =No AND ( status was "'
+        + target_column
+        + '"  during (startOfDay(-'
         + str(nb_days_before)
         + ") ,endOfDay(-"
         + str(nb_days_before)
@@ -196,7 +224,11 @@ for nb_days_before in range(start_days_ago, -1, -1):
         + ")  )"
     )
     ttft_dict = jira_query(
-        board_name, QUERY_CREATED_IN_TRIAGE, nb_days_before, "New Issues"
+        # tl;dr grabs issues created on SEARCHED DATE -> stores under First Touch date
+        board_name,
+        QUERY_CREATED_IN_TRIAGE,
+        nb_days_before,
+        "New Issues",
     )
 
     # report progress
@@ -237,19 +269,27 @@ for nb_days_before in range(start_days_ago, -1, -1):
     # calculate stats:
     ttft_avg = mean(ttft_values)
     ttft_max = max(ttft_values)
+    ttft_sum = sum(ttft_values)
 
     f.write(
-        "%s;%s;%s;%d;%d;%d;%s  \r\n"
+        "%s;%s;%s;%d;%d;%d;%d;%s  \r\n"
         % (
             name,
             target_date,
             points_from_date,
+            ttft_sum,
             ttft_avg,
             ttft_max,
             ttft_count,
             board_name,
         )
     )
+
+f.close()
+
+f = open("orphans.dat", "a+")
+for orphan in orphans:
+    f.write(str(orphan) + "\n")
 
 f.close()
 
