@@ -12,6 +12,7 @@ Files:
 - `allBoardsReport.csv`: final data
 
 To run:
+0. Set start date in jira_stats_api_call.py.
 1. `chmod +x launch_api_calls.sh combine_reports.sh`
 2. `./launch_api_calls.sh`
 

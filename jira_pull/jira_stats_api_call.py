@@ -18,7 +18,8 @@ except:
     exit()
 
 nb_days_before = int(1)  # place holder
-start_days_ago = 90
+start_days_ago = 120
+start_date = datetime.date(2020, 9, 21)
 headers = {"Accept": "application/json"}
 ttft_dict = {}
 issues_dict = {}
@@ -43,7 +44,7 @@ filename_today = today.strftime("%m-%d-%Y")
 filename = str(board_name + "-count_" + filename_today + ".csv")
 
 
-def jira_query(board_name, jqlquery, nb_days_before, name):
+def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
 
     # prep, make the API call
     url = (
@@ -60,7 +61,7 @@ def jira_query(board_name, jqlquery, nb_days_before, name):
         return print("Error from API: " + str(response) + " for: \n" + jqlquery)
 
     # prepare to write
-    concerneddate = today - datetime.timedelta(days=nb_days_before)
+    concerneddate = start_date - datetime.timedelta(days=nb_days_before)
     dconcerneddate = concerneddate.strftime("%m/%d/%Y")
     total = response.json()["total"]
 
@@ -200,6 +201,11 @@ print("\nQuerying: " + board_name)
 # start_days_ago = 10
 for nb_days_before in range(start_days_ago, -1, -1):
 
+    # set date to search, accounting for date range desired (via start_date)
+    # search_date = (today - start_date) + nb_days_before
+
+    # really an Int
+    search_date = (today.date() - start_date) + nb_days_before
     # Update JQL queries:
 
     # includes feature requests, if they started in Triage
@@ -214,13 +220,13 @@ for nb_days_before in range(start_days_ago, -1, -1):
         + ' and "For Escalation Batter?" =No AND ( status was "'
         + target_column
         + '"  during (startOfDay(-'
-        + str(nb_days_before)
+        + str(search_date)
         + ") ,endOfDay(-"
-        + str(nb_days_before)
+        + str(search_date)
         + ") ) AND  created >= startOfDay(-"
-        + str(nb_days_before)
+        + str(search_date)
         + ") AND created <= endOfDay(-"
-        + str(nb_days_before)
+        + str(search_date)
         + ")  )"
     )
     ttft_dict = jira_query(
@@ -228,11 +234,12 @@ for nb_days_before in range(start_days_ago, -1, -1):
         board_name,
         QUERY_CREATED_IN_TRIAGE,
         nb_days_before,
+        start_date,
         "New Issues",
     )
 
     # report progress
-    percent_done = ((start_days_ago - nb_days_before) / start_days_ago) * 100
+    percent_done = ((start_days_ago - search_date) / start_days_ago) * 100
     if percent_done % 10 <= 1:
         print(board_name + ": " + str(percent_done) + "% \n", end=" ", flush=True)
 
@@ -244,7 +251,9 @@ ttft_file = str(board_name + "-ttft_" + filename_today + ".csv")
 f = open(ttft_file, "a+")
 name = "TTFT"
 for nb_days_before in range(start_days_ago, -1, -1):
-    concerneddate = today - datetime.timedelta(days=nb_days_before)
+    # concerneddate = today - datetime.timedelta(days=nb_days_before)
+    # this is how we account for offset. slightly different than the above, may want to match later
+    concerneddate = start_date - datetime.timedelta(days=nb_days_before)
     target_date = str(concerneddate)
 
     # if present, pull and unpack
