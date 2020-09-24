@@ -204,8 +204,8 @@ for nb_days_before in range(start_days_ago, -1, -1):
     # set date to search, accounting for date range desired (via start_date)
     # search_date = (today - start_date) + nb_days_before
 
-    # really an Int
-    search_date = (today.date() - start_date) + nb_days_before
+    # really an Int (today already is a date)
+    search_date = (today - start_date).days + nb_days_before
     # Update JQL queries:
 
     # includes feature requests, if they started in Triage
