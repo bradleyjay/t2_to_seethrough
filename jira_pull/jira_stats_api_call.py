@@ -18,8 +18,13 @@ except:
     exit()
 
 nb_days_before = int(1)  # place holder
-start_days_ago = 90  # usually, use 120 here. test at 10.
+start_days_ago = 5  # usually, use 120 here. test at 10.
 start_date = datetime.date(2020, 11, 1)
+
+# for lifetime, create proper TZ'd datetime obj
+start_datetime = datetime.datetime.combine(
+    start_date, datetime.datetime.min.time()
+).replace(tzinfo=timezone.utc)
 headers = {"Accept": "application/json"}
 ttft_dict = {}
 issues_dict = {}
@@ -80,6 +85,49 @@ def get_field_breakdowns(issue_metadata, issue):
     return issue_metadata
 
 
+def get_and_parse_changelog(issue, auth):
+    # make API call to pull changelog for issue
+
+    # Format: "https://datadoghq.atlassian.net/rest/api/3/issue/88682/changelog?expand=changelog"
+    url = (
+        "https://datadoghq.atlassian.net/rest/api/3/issue/"
+        + issue["issue_id"]
+        + "/changelog?expand=changelog"
+        # + "&maxResults=0"
+    )
+
+    changelog_response = requests.request("GET", url, headers=headers, auth=auth).json()
+
+    print("\n\n CHANGELOG HERE: \n\n" + str(changelog_response))
+
+    # parse changelog: mark issues as "reached Eng, mark lifetime
+    eng_status = ["Engineering Triage", "In Progress"]
+    done_date = 0
+    for value in changelog_response["values"]:
+        if "items" in value:
+            for item in value["items"]:
+                if item["field"] == "status":
+                    # status is Eng Triage, In Prog? Mark issue as "reached eng"
+                    if (
+                        item["fromString"] in eng_status
+                        or item["toString"] in eng_status
+                    ):
+                        issue["reached eng"] = "True"
+
+                    # status is Done? Save date. After loop, newest DONE used for lifetime
+                    if item["toString"] == "Done":
+                        done_date = value["created"]
+                        print("Done date:" + str(done_date))
+
+    # leave lifetime alone if it never hit Done; default at dict creation
+    if done_date != 0:
+        # convert done date - 2020-11-09T04:02:34.584-0500
+        done_date_obj = datetime.datetime.strptime(done_date, "%Y-%m-%dT%H:%M:%S.%f%z")
+        issue["lifetime"] = (done_date_obj - issue["issue_created"]).days
+
+    return issue
+
+
 def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
 
     # prep, make the API call
@@ -111,7 +159,7 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
         )
 
     # debug mode - print raw JSON response to file, appending each day.
-    if debug == True:
+    if debug is True:
 
         f = open(testdump_filename, "a+")
         f.write(json.dumps(response.json(), indent=4, separators=(",", ": ")))
@@ -136,7 +184,8 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
         except:
             print("\n\n Trouble here! No issue_reporter \n\n")
             print(issue_key)
-            continue
+            issue_reporter = None
+            # continue
 
         # pull created date. Format: 2020-05-25T21:04:18.666-0400
         raw_issue_created = issue["fields"]["created"]
@@ -146,12 +195,17 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
             raw_issue_created, "%Y-%m-%dT%H:%M:%S.%f%z"
         )
 
+        # default lifetime
+        default_lifetime = (start_datetime - issue_created).days
+
         # create dict of dicts: each issue's a dict, then that dict has the following:
         issues_dict[issue_id] = {
             "issue_id": issue_id,
             "issue_reporter": issue_reporter,
             "issue_created": issue_created,
             "issue_key": issue_key,
+            "reached eng": "False",
+            "lifetime": default_lifetime,  # update this to issue today - creatoin datee (the max)
         }
 
         # add fieldbreakdowns (AGENT only, at this time)
@@ -160,60 +214,74 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
             issues_dict[issue_id] = get_field_breakdowns(issues_dict[issue_id], issue)
             # print("dict after:" + str(issues_dict[issue_id]))
 
-        # API Call for Comments
-        # Format: "https://datadoghq.atlassian.net/rest/api/2/issue/81840/comment"
-        url = (
-            "https://datadoghq.atlassian.net/rest/api/2/issue/"
-            + issue_id
-            + "/comment"
-            # + "&maxResults=0"
-        )
+        # changelog: Get was-eng-hit and lifetime
 
-        comments_response = requests.request("GET", url, headers=headers, auth=auth)
-        delta_time = None
+        issues_dict[issue_id] = get_and_parse_changelog(issues_dict[issue_id], auth)
 
-        for comment in comments_response.json()["comments"]:
+        #########################################
+        ## TTFT SECTION
+        ## Parse comments to assess touches
+        ## (#REFACTOR)
+        #########################################
 
-            # comments are a LIST, ordered by time
-            # iterate til author != issue author
-            if comment["author"]["emailAddress"] == issue_reporter:
-                continue
+        # can't check for non-reporer comments without reporter email. Move this lower if
+        # we end up using comments for touch count or something, only needed for TTFT
 
-            # take date, parse to simpler date (this'll be our TTFT dict key)
-            raw_comment_date = comment["created"]
-
-            # get time delta for (comment created - issue created)
-            # includes tz
-            comment_date = datetime.datetime.strptime(
-                raw_comment_date, "%Y-%m-%dT%H:%M:%S.%f%z"
+        if issue_reporter is not None:
+            # API Call for Comments
+            # Format: "https://datadoghq.atlassian.net/rest/api/2/issue/81840/comment"
+            url = (
+                "https://datadoghq.atlassian.net/rest/api/2/issue/"
+                + issue_id
+                + "/comment"
+                # + "&maxResults=0"
             )
-            delta_time = (comment_date - issue_created).days
 
-            # if we're storinng TTFT by CREATION DATE, swap the date here now that deltaT is calculated
-            if ttft_storebytouch is False:
-                comment_date = issue_created
+            comments_response = requests.request("GET", url, headers=headers, auth=auth)
+            delta_time = None
 
-            # -> append that to dict's value, under TTFT date
-            # first check if its there. Yes? Append.
-            if str(comment_date.date()) in ttft_dict:
+            for comment in comments_response.json()["comments"]:
 
-                ttft_dict[str(comment_date.date())].append((issue_key, delta_time))
+                # comments are a LIST, ordered by time
+                # iterate til author != issue author
+                if comment["author"]["emailAddress"] == issue_reporter:
+                    continue
 
-            else:
+                # take date, parse to simpler date (this'll be our TTFT dict key)
+                raw_comment_date = comment["created"]
 
-                ttft_dict[str(comment_date.date())] = [(issue_key, delta_time)]
-                break
+                # get time delta for (comment created - issue created)
+                # includes tz
+                comment_date = datetime.datetime.strptime(
+                    raw_comment_date, "%Y-%m-%dT%H:%M:%S.%f%z"
+                )
+                delta_time = (comment_date - issue_created).days
 
-        # handling for no comment matching (orphaned case)
-        if delta_time == None:
-            # theres a LOT of these.... #fixme
-            print("\nNo matching comment for issue " + str(issue_key))
-            delta_time = (today - issue_created.date()).days
-            ttft_dict[str(issue_created.date())] = [(issue_key, delta_time)]
-            orphans.append([(issue_key, delta_time)])
+                # if we're storinng TTFT by CREATION DATE, swap the date here now that deltaT is calculated
+                if ttft_storebytouch is False:
+                    comment_date = issue_created
 
-        # print("TTFT Dict:")
-        # print(ttft_dict)
+                # -> append that to dict's value, under TTFT date
+                # first check if its there. Yes? Append.
+                if str(comment_date.date()) in ttft_dict:
+
+                    ttft_dict[str(comment_date.date())].append((issue_key, delta_time))
+
+                else:
+
+                    ttft_dict[str(comment_date.date())] = [(issue_key, delta_time)]
+                    break
+
+            # handling for no comment matching (orphaned case)
+            if delta_time == None:
+                # theres a LOT of these.... #fixme
+                print("\nNo matching comment for issue " + str(issue_key))
+                delta_time = (start_date - issue_created.date()).days
+                ttft_dict[str(issue_created.date())] = [(issue_key, delta_time)]
+                orphans.append([(issue_key, delta_time)])
+
+            # print("TTFT Dict:")
+            # print(ttft_dict)
 
     return ttft_dict
     """
