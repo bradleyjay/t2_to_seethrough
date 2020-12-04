@@ -18,8 +18,8 @@ except:
     exit()
 
 nb_days_before = int(1)  # place holder
-start_days_ago = 120
-start_date = datetime.date(2020, 9, 21)
+start_days_ago = 90  # usually, use 120 here. test at 10.
+start_date = datetime.date(2020, 11, 1)
 headers = {"Accept": "application/json"}
 ttft_dict = {}
 issues_dict = {}
@@ -27,6 +27,9 @@ orphans = []
 
 # store by touch date, or card creation date?
 ttft_storebytouch = False
+
+# testdump the API response and exit if True
+debug = True
 
 # Eng only support board? Check eenginneering triage
 # serveerless, security
@@ -42,6 +45,39 @@ filename_today = today.strftime("%m-%d-%Y")
 
 # output file cleanup
 filename = str(board_name + "-count_" + filename_today + ".csv")
+testdump_filename = str(board_name + "-testdump.csv")
+
+try:
+    os.remove(testdump_filename)
+except:
+    print("No previous testdump present.")
+
+# flesh out for other boards
+if board_name == "AGENT":
+    fields_list = ["issuetype", "issue_service", "issue_issue"]
+else:
+    fields_list = []
+
+
+def get_field_breakdowns(issue_metadata, issue):
+    # take issue, parse for field info, add that to the issue's dict in issue_dict
+
+    issue_metadata["issuetype"] = issue["fields"]["issuetype"]["name"]
+
+    # (Create list of possible values from this?) May need to gate this with only relevant issue types
+    # "Integration Tools & Libraries"
+
+    if issue["fields"]["customfield_10246"] is not None:
+        issue_metadata["issue_service"] = issue["fields"]["customfield_10246"]["value"]
+    else:
+        issue_metadata["issue_service"] = "None"
+
+    if issue["fields"]["customfield_10241"] is not None:
+        issue_metadata["issue_issue"] = issue["fields"]["customfield_10241"]["value"]
+    else:
+        issue_metadata["issue_issue"] = "None"
+
+    return issue_metadata
 
 
 def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
@@ -75,9 +111,13 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
         )
 
     # debug mode - print raw JSON response to file, appending each day.
-    # f = open("testdump.dat", "a+")
-    # f.write(json.dumps(response.json(), indent=4, separators=(",", ": ")))
-    # f.close()
+    if debug == True:
+
+        f = open(testdump_filename, "a+")
+        f.write(json.dumps(response.json(), indent=4, separators=(",", ": ")))
+        f.close()
+        # print("Testdump complete - " + testdump_filename)
+        # sys.exit()
 
     # write issue count
     f = open(filename, "a+")
@@ -94,7 +134,7 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
         try:
             issue_reporter = issue["fields"]["reporter"]["emailAddress"]
         except:
-            print("\n\n Trouble here! \n\n")
+            print("\n\n Trouble here! No issue_reporter \n\n")
             print(issue_key)
             continue
 
@@ -106,12 +146,19 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
             raw_issue_created, "%Y-%m-%dT%H:%M:%S.%f%z"
         )
 
+        # create dict of dicts: each issue's a dict, then that dict has the following:
         issues_dict[issue_id] = {
             "issue_id": issue_id,
             "issue_reporter": issue_reporter,
             "issue_created": issue_created,
             "issue_key": issue_key,
         }
+
+        # add fieldbreakdowns (AGENT only, at this time)
+        if board_name == "AGENT":
+            # print("dict before:" + str(issues_dict[issue_id]))
+            issues_dict[issue_id] = get_field_breakdowns(issues_dict[issue_id], issue)
+            # print("dict after:" + str(issues_dict[issue_id]))
 
         # API Call for Comments
         # Format: "https://datadoghq.atlassian.net/rest/api/2/issue/81840/comment"
@@ -195,6 +242,74 @@ by not the requester", around line 154)
 
     """
 
+
+def fields_breakdown_report(issues_dict, fields_list):
+
+    fields_breakdown = {}
+
+    # populate fields_breakdown with a blank dict for each field
+    for field in fields_list:
+        fields_breakdown[field] = {}
+
+    issue_count = len(issues_dict)
+
+    # unpack issues: increment count for each field value, nested under the field's name in fields_breakdown
+    for issue in issues_dict:
+        for field in fields_list:
+            if issues_dict[issue][field] in fields_breakdown[field]:
+                fields_breakdown[field][issues_dict[issue][field]] += 1
+            else:
+                fields_breakdown[field][issues_dict[issue][field]] = 1
+
+    # calculate percentages, dump to csv
+    fields_breakdown_pct = copy.deepcopy(fields_breakdown)
+    fields_breakdown_name = str(
+        board_name + "-fields-report_" + filename_today + ".csv"
+    )
+
+    try:
+        os.remove(fields_breakdown_name)
+    except:
+        print("No previous " + board_name + " field breakdown report.")
+    f = open(fields_breakdown_name, "a+")
+
+    f.write(
+        "%s;%s;%s;%s \r\n"
+        % (
+            board_name,
+            start_date,
+            "Prev days incl:" + str(start_days_ago),
+            "Total issues:" + str(issue_count),
+        )
+    )
+    f.write("%s;%s;%s;%s \r\n" % ("Field", "Field Value", "Count", "Percentage"))
+
+    for field in fields_breakdown_pct:
+        # print(type(field))
+        for field_val in fields_breakdown[field]:
+            # print(type(field_val))
+            fields_breakdown_pct[field][field_val] = round(
+                fields_breakdown[field][field_val] / issue_count * 100, 2
+            )
+
+            f.write(
+                "%s;%s;%f;%2f \r\n"
+                % (
+                    field,
+                    field_val,
+                    fields_breakdown[field][field_val],
+                    fields_breakdown_pct[field][field_val],
+                )
+            )
+
+    f.close()
+
+    print("\n\n Fields Breakdown Dict: \n" + str(fields_breakdown))
+    print("\n\n Fields Breakdown Pct: \n" + str(fields_breakdown_pct))
+    print(issue_count)
+
+
+## Main:
 
 print("\nQuerying: " + board_name)
 
@@ -303,6 +418,19 @@ for orphan in orphans:
 f.close()
 
 print(board_name + " API query complete: " + filename + " finished.")
+
+print("\n\n Issues Dict: \n" + str(issues_dict))
+
+
+# add fieldbreakdowns (AGENT only, at this time)
+if board_name == "AGENT":
+    fields_breakdown_report(issues_dict, fields_list)
+
+
+# write_to_csv(ttft_dict, "TTFT", ttft_file, board_name, start_days_ago, today)
+
+# open file: prepare to write
+
 
 # def write_to_csv(self, data, name, filename, board_name, start_days_ago, today):
 
