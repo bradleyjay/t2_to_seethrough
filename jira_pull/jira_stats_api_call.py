@@ -7,7 +7,7 @@ import datetime
 import sys
 import copy
 from statistics import mean
-
+import numpy as np
 
 # input, initialization
 try:
@@ -18,7 +18,7 @@ except:
     exit()
 
 nb_days_before = int(1)  # place holder
-start_days_ago = 5  # usually, use 120 here. test at 10.
+start_days_ago = 3  # usually, use 120 here. test at 10.
 start_date = datetime.date(2020, 11, 1)
 
 # for lifetime, create proper TZ'd datetime obj
@@ -34,8 +34,8 @@ orphans = []
 ttft_storebytouch = False
 
 # testdump the API response and exit if True
-debug = True
-
+# debug = True
+debug = False
 # Eng only support board? Check eenginneering triage
 # serveerless, security
 if board_name in ["SLES", "SCRS", "PRMS", "WEBINT"]:
@@ -112,7 +112,7 @@ def get_and_parse_changelog(issue, auth):
                         item["fromString"] in eng_status
                         or item["toString"] in eng_status
                     ):
-                        issue["reached eng"] = "True"
+                        issue["reached_eng"] = 1
 
                     # status is Done? Save date. After loop, newest DONE used for lifetime
                     if item["toString"] == "Done":
@@ -204,7 +204,7 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
             "issue_reporter": issue_reporter,
             "issue_created": issue_created,
             "issue_key": issue_key,
-            "reached eng": "False",
+            "reached_eng": 0,
             "lifetime": default_lifetime,  # update this to issue today - creatoin datee (the max)
         }
 
@@ -311,7 +311,9 @@ by not the requester", around line 154)
     """
 
 
-def fields_breakdown_report(issues_dict, fields_list):
+def fields_breakdown_report(
+    issues_dict, fields_list, board_name, start_date, filename_today, start_days_ago
+):
 
     fields_breakdown = {}
 
@@ -361,7 +363,7 @@ def fields_breakdown_report(issues_dict, fields_list):
             )
 
             f.write(
-                "%s;%s;%f;%2f \r\n"
+                "%s;%s;%f;%.2f \r\n"
                 % (
                     field,
                     field_val,
@@ -372,9 +374,104 @@ def fields_breakdown_report(issues_dict, fields_list):
 
     f.close()
 
-    print("\n\n Fields Breakdown Dict: \n" + str(fields_breakdown))
-    print("\n\n Fields Breakdown Pct: \n" + str(fields_breakdown_pct))
-    print(issue_count)
+    # print("\n\n Fields Breakdown Dict: \n" + str(fields_breakdown))
+    # print("\n\n Fields Breakdown Pct: \n" + str(fields_breakdown_pct))
+    # print(issue_count)
+
+
+def changelog_reports(
+    issues_dict, board_name, start_date, filename_today, start_days_ago
+):
+
+    # print report - stats on #, % cards reaching Eng; stats on lifetime
+    issue_count = len(issues_dict)
+
+    total_reaching_eng = 0
+    lifetime_total = 0
+    lifetime_raw = []
+    for issue in issues_dict:
+        total_reaching_eng += issues_dict[issue]["reached_eng"]
+        lifetime_raw.append(issues_dict[issue]["lifetime"])
+        lifetime_total += issues_dict[issue]["lifetime"]
+
+    #  reaching eng stats
+    pct_reaching_eng = total_reaching_eng / issue_count
+
+    # lifetime stats
+
+    lifetime_values, lifetime_bins = np.histogram(lifetime_raw)  # outputs values, bins
+
+    lifetime_stats = {}
+
+    lifetime_stats["lifetime_summed_days"] = lifetime_total
+    lifetime_stats["issue_count"] = issue_count
+    lifetime_stats["lifetime_average"] = lifetime_total / issue_count
+    lifetime_stats["lifetime_p50"] = np.percentile(
+        lifetime_raw, 50, interpolation="lower"
+    )
+    lifetime_stats["lifetime_p75"] = np.percentile(
+        lifetime_raw, 75, interpolation="lower"
+    )
+    lifetime_stats["lifetime_p90"] = np.percentile(
+        lifetime_raw, 90, interpolation="lower"
+    )
+    lifetime_stats["lifetime_p99"] = np.percentile(
+        lifetime_raw, 99, interpolation="lower"
+    )
+
+    changelog_report = str(board_name + "-changelog-report_" + filename_today + ".csv")
+
+    print("lifetime histo:")
+    print(lifetime_bins)
+    print(lifetime_values)
+
+    print("lifetime_stats")
+    print(lifetime_stats)
+
+    try:
+        os.remove(changelog_report)
+    except:
+        print("No previous " + board_name + " changelog report.")
+    f = open(changelog_report, "a+")
+
+    f.write(
+        "%s;%s;%s;%s;%s \r\n"
+        % (
+            "ChangeLog report: reached eng, lifetime",
+            board_name,
+            start_date,
+            "Prev days incl:" + str(start_days_ago),
+            "Total issues:" + str(issue_count),
+        )
+    )
+    f.write(
+        "%s;%s;%d;%s;%d;%s;%.2f \r\n"
+        % (
+            "\n\nReached Engineering Data",
+            "\nCount of Issues Reaching Eng:",
+            total_reaching_eng,
+            "\nTotal Issues:",
+            issue_count,
+            "\nPercentage Reaching Eng:",
+            pct_reaching_eng,
+        )
+    )
+
+    f.write("%s \r\n" % ("\n\nLifetime Data"))
+
+    # write stats
+    for key, value in lifetime_stats.items():
+        f.write("%s;%d \r\n" % (key, value))
+
+    # write histogram
+    f.write(
+        "%s;%s;%s \r\n"
+        % ("\nHistogram: bins are from listed value", "\nBin Value", "Count")
+    )
+    for i in range(0, len(lifetime_values)):
+        f.write("%.2f;%.2f \r\n" % (lifetime_bins[i], lifetime_values[i]))
+
+    f.close()
 
 
 ## Main:
@@ -492,7 +589,11 @@ print("\n\n Issues Dict: \n" + str(issues_dict))
 
 # add fieldbreakdowns (AGENT only, at this time)
 if board_name == "AGENT":
-    fields_breakdown_report(issues_dict, fields_list)
+    fields_breakdown_report(
+        issues_dict, fields_list, board_name, start_date, filename_today, start_days_ago
+    )
+
+changelog_reports(issues_dict, board_name, start_date, filename_today, start_days_ago)
 
 
 # write_to_csv(ttft_dict, "TTFT", ttft_file, board_name, start_days_ago, today)
