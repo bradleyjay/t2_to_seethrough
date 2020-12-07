@@ -36,6 +36,10 @@ ttft_storebytouch = False
 # testdump the API response and exit if True
 # debug = True
 debug = False
+
+# print changelog (lifetime and eng% reports)
+print_reports = False
+
 # Eng only support board? Check eenginneering triage
 # serveerless, security
 if board_name in ["SLES", "SCRS", "PRMS", "WEBINT"]:
@@ -98,7 +102,8 @@ def get_and_parse_changelog(issue, auth):
 
     changelog_response = requests.request("GET", url, headers=headers, auth=auth).json()
 
-    print("\n\n CHANGELOG HERE: \n\n" + str(changelog_response))
+    if debug is True:
+        print("\n\n CHANGELOG HERE: \n\n" + str(changelog_response))
 
     # parse changelog: mark issues as "reached Eng, mark lifetime
     eng_status = ["Engineering Triage", "In Progress"]
@@ -117,7 +122,8 @@ def get_and_parse_changelog(issue, auth):
                     # status is Done? Save date. After loop, newest DONE used for lifetime
                     if item["toString"] == "Done":
                         done_date = value["created"]
-                        print("Done date:" + str(done_date))
+                        if debug is True:
+                            print("Done date:" + str(done_date))
 
     # leave lifetime alone if it never hit Done; default at dict creation
     if done_date != 0:
@@ -421,12 +427,13 @@ def changelog_reports(
 
     changelog_report = str(board_name + "-changelog-report_" + filename_today + ".csv")
 
-    print("lifetime histo:")
-    print(lifetime_bins)
-    print(lifetime_values)
+    if debug is True:
+        print("lifetime histo:")
+        print(lifetime_bins)
+        print(lifetime_values)
 
-    print("lifetime_stats")
-    print(lifetime_stats)
+        print("lifetime_stats")
+        print(lifetime_stats)
 
     try:
         os.remove(changelog_report)
@@ -520,6 +527,10 @@ for nb_days_before in range(start_days_ago, -1, -1):
 
     # report progress
     percent_done = ((start_days_ago - search_date) / start_days_ago) * 100
+    # percent_done =
+    #     (1 - ((search_date - (start_date.days) / (start_date.days - start_days_ago).days)
+    # )) * 100  # math is right, search date is a number, so need to convert
+
     if percent_done % 10 <= 1:
         print(board_name + ": " + str(percent_done) + "% \n", end=" ", flush=True)
 
@@ -584,16 +595,25 @@ f.close()
 
 print(board_name + " API query complete: " + filename + " finished.")
 
-print("\n\n Issues Dict: \n" + str(issues_dict))
+if debug is True:
+    print("\n\n Issues Dict: \n" + str(issues_dict))
 
 
 # add fieldbreakdowns (AGENT only, at this time)
-if board_name == "AGENT":
-    fields_breakdown_report(
-        issues_dict, fields_list, board_name, start_date, filename_today, start_days_ago
-    )
+if print_reports is True:
+    if board_name == "AGENT":
+        fields_breakdown_report(
+            issues_dict,
+            fields_list,
+            board_name,
+            start_date,
+            filename_today,
+            start_days_ago,
+        )
 
-changelog_reports(issues_dict, board_name, start_date, filename_today, start_days_ago)
+        changelog_reports(
+            issues_dict, board_name, start_date, filename_today, start_days_ago
+        )
 
 
 # write_to_csv(ttft_dict, "TTFT", ttft_file, board_name, start_days_ago, today)
