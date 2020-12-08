@@ -18,13 +18,16 @@ except:
     exit()
 
 nb_days_before = int(1)  # place holder
-start_days_ago = 3  # usually, use 120 here. test at 10.
+start_days_ago = 120  # usually, use 120 here. test at 10.
 start_date = datetime.date(2020, 11, 1)
 
-# for lifetime, create proper TZ'd datetime obj
+# for lifetime, create proper TZ'd datetime obj. And, set cutoff to 30 days past start date.
 start_datetime = datetime.datetime.combine(
     start_date, datetime.datetime.min.time()
 ).replace(tzinfo=timezone.utc)
+cutoff_datetime = start_datetime + datetime.timedelta(days=30)
+
+
 headers = {"Accept": "application/json"}
 ttft_dict = {}
 issues_dict = {}
@@ -38,7 +41,8 @@ ttft_storebytouch = False
 debug = False
 
 # print changelog (lifetime and eng% reports)
-print_reports = False
+print_reports = True
+# print_reports = False
 
 # Eng only support board? Check eenginneering triage
 # serveerless, security
@@ -74,17 +78,89 @@ def get_field_breakdowns(issue_metadata, issue):
     issue_metadata["issuetype"] = issue["fields"]["issuetype"]["name"]
 
     # (Create list of possible values from this?) May need to gate this with only relevant issue types
+
+    # refactor: turn this into a map via dict. No need to have each be a codeblock.
+    # "Agent Core"
+    if issue_metadata["issuetype"] == "Agent Core":
+        if issue["fields"]["customfield_10246"] is not None:
+            issue_metadata["issue_service"] = issue["fields"]["customfield_10246"][
+                "value"
+            ]
+        else:
+            issue_metadata["issue_service"] = "None"
+
+        if issue["fields"]["customfield_10241"] is not None:
+            issue_metadata["issue_issue"] = issue["fields"]["customfield_10241"][
+                "value"
+            ]
+        else:
+            issue_metadata["issue_issue"] = "None"
+
+    # "Agent Integrations"
+    if issue_metadata["issuetype"] == "Agent Integrations":
+        if issue["fields"]["customfield_10247"] is not None:
+            issue_metadata["issue_service"] = issue["fields"]["customfield_10247"][
+                "value"
+            ]
+        else:
+            issue_metadata["issue_service"] = "None"
+
+        if issue["fields"]["customfield_10241"] is not None:
+            issue_metadata["issue_issue"] = issue["fields"]["customfield_10241"][
+                "value"
+            ]
+        else:
+            issue_metadata["issue_issue"] = "None"
+
     # "Integration Tools & Libraries"
+    if issue_metadata["issuetype"] == "Integration Tools & Libraries":
+        if issue["fields"]["customfield_10255"] is not None:
+            issue_metadata["issue_service"] = issue["fields"]["customfield_10255"][
+                "value"
+            ]
+        else:
+            issue_metadata["issue_service"] = "None"
 
-    if issue["fields"]["customfield_10246"] is not None:
-        issue_metadata["issue_service"] = issue["fields"]["customfield_10246"]["value"]
-    else:
-        issue_metadata["issue_service"] = "None"
+        if issue["fields"]["customfield_10241"] is not None:
+            issue_metadata["issue_issue"] = issue["fields"]["customfield_10241"][
+                "value"
+            ]
+        else:
+            issue_metadata["issue_issue"] = "None"
 
-    if issue["fields"]["customfield_10241"] is not None:
-        issue_metadata["issue_issue"] = issue["fields"]["customfield_10241"]["value"]
-    else:
-        issue_metadata["issue_issue"] = "None"
+    # "Agent Platform"
+    if issue_metadata["issuetype"] == "Agent Platform":
+        # if issue["fields"]["customfield_10255"] is not None:
+        # issue_metadata["issue_service"] = issue["fields"]["customfield_10255"][
+        #         "value"
+        #     ]
+        # else:
+        issue_metadata[
+            "issue_service"
+        ] = "None (Agent Platform)"  # every "Agent Platform Service" is null, something's borked SE/Jira-side
+
+        if issue["fields"]["customfield_10241"] is not None:
+            issue_metadata["issue_issue"] = issue["fields"]["customfield_10241"][
+                "value"
+            ]
+        else:
+            issue_metadata["issue_issue"] = "None"
+
+    # "Infra Integrations"
+    if issue_metadata["issuetype"] == "Infrastructure Integrations":
+        if issue["fields"]["customfield_10492"] is not None:
+            issue_metadata["issue_service"] = issue["fields"]["customfield_10492"][
+                "value"
+            ]
+        else:
+            issue_metadata["issue_service"] = "None"
+
+        if issue["fields"]["customfield_10241"] is not None:
+            issue_metadata["issue_issue"] = issue["fields"]["customfield_10241"][
+                "value"
+            ]
+        else:
+            issue_metadata["issue_issue"] = "None"
 
     return issue_metadata
 
@@ -106,6 +182,8 @@ def get_and_parse_changelog(issue, auth):
         print("\n\n CHANGELOG HERE: \n\n" + str(changelog_response))
 
     # parse changelog: mark issues as "reached Eng, mark lifetime
+    # note: this is from the time it reached done, from the creation date. If issue wasn't yet complete it gets the
+    # default "search_date - creation_date", correctly (yeah but why, we don't want this...we want through Nov)
     eng_status = ["Engineering Triage", "In Progress"]
     done_date = 0
     for value in changelog_response["values"]:
@@ -121,13 +199,16 @@ def get_and_parse_changelog(issue, auth):
 
                     # status is Done? Save date. After loop, newest DONE used for lifetime
                     if item["toString"] == "Done":
-                        done_date = value["created"]
+                        done_date = value[
+                            "created"
+                        ]  # changelog log creation, i.e. when Done occured
                         if debug is True:
                             print("Done date:" + str(done_date))
 
     # leave lifetime alone if it never hit Done; default at dict creation
     if done_date != 0:
         # convert done date - 2020-11-09T04:02:34.584-0500
+
         done_date_obj = datetime.datetime.strptime(done_date, "%Y-%m-%dT%H:%M:%S.%f%z")
         issue["lifetime"] = (done_date_obj - issue["issue_created"]).days
 
@@ -202,7 +283,7 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
         )
 
         # default lifetime
-        default_lifetime = (start_datetime - issue_created).days
+        default_lifetime = (cutoff_datetime - issue_created).days
 
         # create dict of dicts: each issue's a dict, then that dict has the following:
         issues_dict[issue_id] = {
@@ -332,6 +413,8 @@ def fields_breakdown_report(
     # unpack issues: increment count for each field value, nested under the field's name in fields_breakdown
     for issue in issues_dict:
         for field in fields_list:
+            # print(issues_dict[issue][field])
+            # print(fields_breakdown[field])
             if issues_dict[issue][field] in fields_breakdown[field]:
                 fields_breakdown[field][issues_dict[issue][field]] += 1
             else:
@@ -405,7 +488,9 @@ def changelog_reports(
 
     # lifetime stats
 
-    lifetime_values, lifetime_bins = np.histogram(lifetime_raw)  # outputs values, bins
+    lifetime_values, lifetime_bins = np.histogram(
+        lifetime_raw, bins=[0, 3, 7, 10, 14, 17, 21, 24, 28, 35, 42]
+    )  # outputs values, bins
 
     lifetime_stats = {}
 
