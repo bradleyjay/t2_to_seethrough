@@ -18,14 +18,15 @@ except:
     exit()
 
 nb_days_before = int(1)  # place holder
-start_days_ago = 120  # usually, use 120 here. test at 10.
+start_days_ago = 90  # usually, use 120 here. test at 10.
 start_date = datetime.date(2020, 11, 1)
 
 # for lifetime, create proper TZ'd datetime obj. And, set cutoff to 30 days past start date.
 start_datetime = datetime.datetime.combine(
     start_date, datetime.datetime.min.time()
 ).replace(tzinfo=timezone.utc)
-cutoff_datetime = start_datetime + datetime.timedelta(days=30)
+lookahead_days = 30
+cutoff_datetime = start_datetime + datetime.timedelta(days=lookahead_days)
 
 
 headers = {"Accept": "application/json"}
@@ -409,6 +410,8 @@ def fields_breakdown_report(
         fields_breakdown[field] = {}
 
     issue_count = len(issues_dict)
+    # init for issuetype -> service mapping
+    service_by_issues = {}
 
     # unpack issues: increment count for each field value, nested under the field's name in fields_breakdown
     for issue in issues_dict:
@@ -419,7 +422,44 @@ def fields_breakdown_report(
                 fields_breakdown[field][issues_dict[issue][field]] += 1
             else:
                 fields_breakdown[field][issues_dict[issue][field]] = 1
+            if field == "issue_service":
 
+                _issue_type = issues_dict[issue]["issuetype"]
+                _issue_service = issues_dict[issue]["issue_service"]
+
+                if _issue_type in service_by_issues:
+                    if _issue_service in service_by_issues[_issue_type]:
+                        service_by_issues[_issue_type][_issue_service] += 1
+
+                    else:
+                        service_by_issues[_issue_type][_issue_service] = 1
+
+                else:
+                    service_by_issues[_issue_type] = {_issue_service: 1}
+
+                # # refactor -  kill this with fire
+                # if issues_dict[issue]["issuetype"] in service_by_issues:
+                #     if (
+                #         issues_dict[issue]["issue_service"]
+                #         in service_by_issues[issues_dict[issue]["issuetype"]]
+                #     ):
+                #         service_by_issues[issues_dict[issue]["issuetype"]][
+                #             issues_dict[issue["issue_service"]]
+                #         ] += 1
+                #     else:
+                #         service_by_issues[issues_dict[issue]["issuetype"]][
+                #             issues_dict[issue["issue_service"]]
+                #         ] = 1
+                # else:
+                #     service_by_issues[issues_dict[issue]["issuetype"]] = {
+                #         issues_dict[issue]["issue_service"]: 1
+                #     }
+
+                # service_by_issues[issues_dict[issue]["issuetype"]][
+                #     issues_dict[issue]["issue_service"]
+                # ] = 1
+
+    # print(service_by_issues)
     # calculate percentages, dump to csv
     fields_breakdown_pct = copy.deepcopy(fields_breakdown)
     fields_breakdown_name = str(
@@ -441,7 +481,7 @@ def fields_breakdown_report(
             "Total issues:" + str(issue_count),
         )
     )
-    f.write("%s;%s;%s;%s \r\n" % ("Field", "Field Value", "Count", "Percentage"))
+    f.write("\n%s;%s;%s;%s \r\n" % ("Field", "Field Value", "Count", "Percentage"))
 
     for field in fields_breakdown_pct:
         # print(type(field))
@@ -458,6 +498,30 @@ def fields_breakdown_report(
                     field_val,
                     fields_breakdown[field][field_val],
                     fields_breakdown_pct[field][field_val],
+                )
+            )
+
+    f.write(
+        "\n\n\n%s;%s;%s;%s \r\n"
+        % ("Issuetype", "Service", "Count", "Percentage of Issuetype")
+    )
+
+    for issuetype in service_by_issues:
+        # print(type(field))
+        for service in service_by_issues[issuetype]:
+            percentage_s = (
+                service_by_issues[issuetype][service]
+                / sum(service_by_issues[issuetype].values())
+                * 100
+            )
+
+            f.write(
+                "%s;%s;%d;%.2f \r\n"
+                % (
+                    issuetype,
+                    service,
+                    service_by_issues[issuetype][service],
+                    percentage_s,
                 )
             )
 
@@ -489,8 +553,22 @@ def changelog_reports(
     # lifetime stats
 
     lifetime_values, lifetime_bins = np.histogram(
-        lifetime_raw, bins=[0, 3, 7, 10, 14, 17, 21, 24, 28, 35, 42]
-    )  # outputs values, bins
+        lifetime_raw,
+        bins=[
+            0,
+            3,
+            7,
+            10,
+            14,
+            17,
+            21,
+            24,
+            28,
+            35,
+            42,
+            int(start_days_ago + lookahead_days),
+        ],
+    )  # outputs values, bins. # NOTE: histogram chopped at last bin value. MUST use large final value here.
 
     lifetime_stats = {}
 
@@ -563,6 +641,8 @@ def changelog_reports(
     for i in range(0, len(lifetime_values)):
         f.write("%.2f;%.2f \r\n" % (lifetime_bins[i], lifetime_values[i]))
 
+    for i in range(0, len(lifetime_values)):
+        f.write("%.2f;%.2f \r\n" % (lifetime_bins[i], lifetime_values[i]))
     f.close()
 
 
