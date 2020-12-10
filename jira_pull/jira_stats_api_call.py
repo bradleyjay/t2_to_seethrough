@@ -32,6 +32,10 @@ cutoff_datetime = start_datetime + datetime.timedelta(days=lookahead_days)
 headers = {"Accept": "application/json"}
 ttft_dict = {}
 issues_dict = {}
+
+# dict for manually sorting bug vs. preventable for D
+done_issues_list = []
+
 orphans = []
 
 # store by touch date, or card creation date?
@@ -80,7 +84,7 @@ def get_field_breakdowns(issue_metadata, issue):
 
     # (Create list of possible values from this?) May need to gate this with only relevant issue types
 
-    # refactor: turn this into a map via dict. No need to have each be a codeblock.
+    # #REFACTOR: turn this into a map via dict. No need to have each be a codeblock.
     # "Agent Core"
     if issue_metadata["issuetype"] == "Agent Core":
         if issue["fields"]["customfield_10246"] is not None:
@@ -305,7 +309,12 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
         # changelog: Get was-eng-hit and lifetime
 
         issues_dict[issue_id] = get_and_parse_changelog(issues_dict[issue_id], auth)
-
+        if (
+            issues_dict[issue_id]["lifetime"]
+            != default_lifetime
+            #
+        ):
+            done_issues_list.append(issues_dict[issue_id])
         #########################################
         ## TTFT SECTION
         ## Parse comments to assess touches
@@ -437,28 +446,6 @@ def fields_breakdown_report(
                 else:
                     service_by_issues[_issue_type] = {_issue_service: 1}
 
-                # # refactor -  kill this with fire
-                # if issues_dict[issue]["issuetype"] in service_by_issues:
-                #     if (
-                #         issues_dict[issue]["issue_service"]
-                #         in service_by_issues[issues_dict[issue]["issuetype"]]
-                #     ):
-                #         service_by_issues[issues_dict[issue]["issuetype"]][
-                #             issues_dict[issue["issue_service"]]
-                #         ] += 1
-                #     else:
-                #         service_by_issues[issues_dict[issue]["issuetype"]][
-                #             issues_dict[issue["issue_service"]]
-                #         ] = 1
-                # else:
-                #     service_by_issues[issues_dict[issue]["issuetype"]] = {
-                #         issues_dict[issue]["issue_service"]: 1
-                #     }
-
-                # service_by_issues[issues_dict[issue]["issuetype"]][
-                #     issues_dict[issue]["issue_service"]
-                # ] = 1
-
     # print(service_by_issues)
     # calculate percentages, dump to csv
     fields_breakdown_pct = copy.deepcopy(fields_breakdown)
@@ -533,7 +520,12 @@ def fields_breakdown_report(
 
 
 def changelog_reports(
-    issues_dict, board_name, start_date, filename_today, start_days_ago
+    issues_dict,
+    board_name,
+    start_date,
+    filename_today,
+    start_days_ago,
+    done_issues_list,
 ):
 
     # print report - stats on #, % cards reaching Eng; stats on lifetime
@@ -566,7 +558,8 @@ def changelog_reports(
             28,
             35,
             42,
-            int(start_days_ago + lookahead_days),
+            150
+            # fixme int(start_days_ago + lookahead_days),
         ],
     )  # outputs values, bins. # NOTE: histogram chopped at last bin value. MUST use large final value here.
 
@@ -643,6 +636,45 @@ def changelog_reports(
 
     for i in range(0, len(lifetime_values)):
         f.write("%.2f;%.2f \r\n" % (lifetime_bins[i], lifetime_values[i]))
+    f.close()
+
+    # done_issues_list -> links for manual sorting
+
+    done_issues_report = str(
+        board_name + "-done-issues-report_" + filename_today + ".csv"
+    )
+    try:
+        os.remove(done_issues_report)
+    except:
+        print("No previous " + board_name + " changelog report.")
+
+    f = open(done_issues_report, "a+")
+
+    f.write(
+        "%s;%s;%s;%s;%s;%s;%s \r\n"
+        % (
+            "Issue Key",
+            "Creation Date",
+            "Issue Type",
+            "Issue Service",
+            "Issue",
+            "Link",
+            "Bug, Config Err, Human Err, Poor Docs?",
+        )
+    )
+    for issue in done_issues_list:
+        f.write(
+            "%s;%s;%s;%s;%s;%s  \r\n"
+            % (
+                issue["issue_key"],
+                issue["issue_created"],
+                issue["issuetype"],
+                issue["issue_service"],
+                issue["issue_issue"],
+                str("https://datadoghq.atlassian.net/browse/")
+                + str(issue["issue_key"]),
+            )
+        )
     f.close()
 
 
@@ -756,6 +788,7 @@ f = open("orphans.dat", "a+")
 for orphan in orphans:
     f.write(str(orphan) + "\n")
 
+
 f.close()
 
 print(board_name + " API query complete: " + filename + " finished.")
@@ -777,7 +810,12 @@ if print_reports is True:
         )
 
         changelog_reports(
-            issues_dict, board_name, start_date, filename_today, start_days_ago
+            issues_dict,
+            board_name,
+            start_date,
+            filename_today,
+            start_days_ago,
+            done_issues_list,
         )
 
 
