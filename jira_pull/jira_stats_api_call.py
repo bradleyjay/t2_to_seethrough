@@ -18,7 +18,7 @@ except:
     exit()
 
 nb_days_before = int(1)  # place holder
-start_days_ago = 90  # usually, use 120 here. test at 10.
+start_days_ago = 90  # 120 for 3 months (we use rolling window 30 days, so need one extra. For reports, 90)
 start_date = datetime.date(2020, 11, 1)
 
 # for lifetime, create proper TZ'd datetime obj. And, set cutoff to 30 days past start date.
@@ -45,6 +45,10 @@ ttft_storebytouch = False
 # debug = True
 debug = False
 
+# print validation for tests
+# debug_test = True
+debug_test = False
+
 # print changelog (lifetime and eng% reports)
 print_reports = True
 # print_reports = False
@@ -64,11 +68,6 @@ filename_today = today.strftime("%m-%d-%Y")
 # output file cleanup
 filename = str(board_name + "-count_" + filename_today + ".csv")
 testdump_filename = str(board_name + "-testdump.csv")
-
-try:
-    os.remove(testdump_filename)
-except:
-    print("No previous testdump present.")
 
 # flesh out for other boards
 if board_name == "AGENT":
@@ -191,31 +190,34 @@ def get_and_parse_changelog(issue, auth):
     # default "search_date - creation_date", correctly (yeah but why, we don't want this...we want through Nov)
     eng_status = ["Engineering Triage", "In Progress"]
     done_date = 0
-    for value in changelog_response["values"]:
-        if "items" in value:
-            for item in value["items"]:
-                if item["field"] == "status":
-                    # status is Eng Triage, In Prog? Mark issue as "reached eng"
-                    if (
-                        item["fromString"] in eng_status
-                        or item["toString"] in eng_status
-                    ):
-                        issue["reached_eng"] = 1
+    if "values" in changelog_response:
+        for value in changelog_response["values"]:
+            if "items" in value:
+                for item in value["items"]:
+                    if item["field"] == "status":
+                        # status is Eng Triage, In Prog? Mark issue as "reached eng"
+                        if (
+                            item["fromString"] in eng_status
+                            or item["toString"] in eng_status
+                        ):
+                            issue["reached_eng"] = 1
 
-                    # status is Done? Save date. After loop, newest DONE used for lifetime
-                    if item["toString"] == "Done":
-                        done_date = value[
-                            "created"
-                        ]  # changelog log creation, i.e. when Done occured
-                        if debug is True:
-                            print("Done date:" + str(done_date))
+                        # status is Done? Save date. After loop, newest DONE used for lifetime
+                        if item["toString"] == "Done":
+                            done_date = value[
+                                "created"
+                            ]  # changelog log creation, i.e. when Done occured
+                            if debug is True:
+                                print("Done date:" + str(done_date))
 
-    # leave lifetime alone if it never hit Done; default at dict creation
-    if done_date != 0:
-        # convert done date - 2020-11-09T04:02:34.584-0500
+        # leave lifetime alone if it never hit Done; default at dict creation
+        if done_date != 0:
+            # convert done date - 2020-11-09T04:02:34.584-0500
 
-        done_date_obj = datetime.datetime.strptime(done_date, "%Y-%m-%dT%H:%M:%S.%f%z")
-        issue["lifetime"] = (done_date_obj - issue["issue_created"]).days
+            done_date_obj = datetime.datetime.strptime(
+                done_date, "%Y-%m-%dT%H:%M:%S.%f%z"
+            )
+            issue["lifetime"] = (done_date_obj - issue["issue_created"]).days
 
     return issue
 
@@ -231,6 +233,13 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
 
     auth = HTTPBasicAuth(os.environ.get("JIRA_EMAIL"), os.environ.get("JIRA_API_KEY"))
     response = requests.request("GET", url, headers=headers, auth=auth)
+
+    if debug_test is True:
+        print("**jira_query**:")
+        print(board_name, jqlquery, nb_days_before, start_date, name)
+        print("**jira_json**")
+        print(response.json())
+        print("\n\n\n\n\n\n")
 
     # error out if response wasn't clean
     if str(response) != "<Response [200]>":
@@ -337,50 +346,60 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
             comments_response = requests.request("GET", url, headers=headers, auth=auth)
             delta_time = None
 
-            for comment in comments_response.json()["comments"]:
+            if comments_response and "comments" in comments_response.json():
+                for comment in comments_response.json()["comments"]:
 
-                # comments are a LIST, ordered by time
-                # iterate til author != issue author
-                if comment["author"]["emailAddress"] == issue_reporter:
-                    continue
+                    # comments are a LIST, ordered by time
+                    # iterate til author != issue author
+                    if comment["author"]["emailAddress"] == issue_reporter:
+                        continue
 
-                # take date, parse to simpler date (this'll be our TTFT dict key)
-                raw_comment_date = comment["created"]
+                    # take date, parse to simpler date (this'll be our TTFT dict key)
+                    raw_comment_date = comment["created"]
 
-                # get time delta for (comment created - issue created)
-                # includes tz
-                comment_date = datetime.datetime.strptime(
-                    raw_comment_date, "%Y-%m-%dT%H:%M:%S.%f%z"
-                )
-                delta_time = (comment_date - issue_created).days
+                    # get time delta for (comment created - issue created)
+                    # includes tz
+                    comment_date = datetime.datetime.strptime(
+                        raw_comment_date, "%Y-%m-%dT%H:%M:%S.%f%z"
+                    )
+                    delta_time = (comment_date - issue_created).days
 
-                # if we're storinng TTFT by CREATION DATE, swap the date here now that deltaT is calculated
-                if ttft_storebytouch is False:
-                    comment_date = issue_created
+                    # if we're storinng TTFT by CREATION DATE, swap the date here now that deltaT is calculated
+                    if ttft_storebytouch is False:
+                        comment_date = issue_created
 
-                # -> append that to dict's value, under TTFT date
-                # first check if its there. Yes? Append.
-                if str(comment_date.date()) in ttft_dict:
+                    # -> append that to dict's value, under TTFT date
+                    # first check if its there. Yes? Append.
+                    if str(comment_date.date()) in ttft_dict:
 
-                    ttft_dict[str(comment_date.date())].append((issue_key, delta_time))
+                        ttft_dict[str(comment_date.date())].append(
+                            (issue_key, delta_time)
+                        )
 
-                else:
+                    else:
 
-                    ttft_dict[str(comment_date.date())] = [(issue_key, delta_time)]
-                    break
+                        ttft_dict[str(comment_date.date())] = [(issue_key, delta_time)]
+                        break
 
-            # handling for no comment matching (orphaned case)
-            if delta_time == None:
-                # theres a LOT of these.... #fixme
-                print("\nNo matching comment for issue " + str(issue_key))
-                delta_time = (start_date - issue_created.date()).days
-                ttft_dict[str(issue_created.date())] = [(issue_key, delta_time)]
-                orphans.append([(issue_key, delta_time)])
+                # handling for no comment matching (orphaned case)
+                if delta_time == None:
+                    # theres a LOT of these.... #fixme
+                    print("\nNo matching comment for issue " + str(issue_key))
+                    delta_time = (start_date - issue_created.date()).days
+                    ttft_dict[str(issue_created.date())] = [(issue_key, delta_time)]
+                    orphans.append([(issue_key, delta_time)])
 
-            # print("TTFT Dict:")
-            # print(ttft_dict)
+                # print("TTFT Dict:")
+                # print(ttft_dict)
 
-    return ttft_dict
+    if debug_test is True:
+        # test issues dict, just for testing
+
+        print("**test_issues_dict**")
+        print(test_issues_dict)
+
+    test_issues_dict = issues_dict
+    return ttft_dict, test_issues_dict
     """
 What we have above is a dict (ttft_dict) where the keys are the date of first touch, and the data
 is a list of tuples (issue key, the delta between creation date and first comment).
@@ -411,6 +430,17 @@ by not the requester", around line 154)
 def fields_breakdown_report(
     issues_dict, fields_list, board_name, start_date, filename_today, start_days_ago
 ):
+    ## for testing
+    if debug_test is True:
+        print("**fields_breakdown_report**")
+        print(
+            issues_dict,
+            fields_list,
+            board_name,
+            start_date,
+            filename_today,
+            start_days_ago,
+        )
 
     fields_breakdown = {}
 
@@ -514,9 +544,15 @@ def fields_breakdown_report(
 
     f.close()
 
-    # print("\n\n Fields Breakdown Dict: \n" + str(fields_breakdown))
-    # print("\n\n Fields Breakdown Pct: \n" + str(fields_breakdown_pct))
-    # print(issue_count)
+    if debug_test is True:
+        print("**fields_breakdown**")
+        print(fields_breakdown)
+        print("\n\n**fields_breakdown_pct**")
+        print(fields_breakdown_pct)
+        print("\n\n**service_by_issues**")
+        print(service_by_issues)
+
+    return fields_breakdown, fields_breakdown_pct, service_by_issues
 
 
 def changelog_reports(
@@ -527,6 +563,16 @@ def changelog_reports(
     start_days_ago,
     done_issues_list,
 ):
+    if debug_test is True:
+        print("**changelog_reports**")
+        print(
+            issues_dict,
+            board_name,
+            start_date,
+            filename_today,
+            start_days_ago,
+            done_issues_list,
+        )
 
     # print report - stats on #, % cards reaching Eng; stats on lifetime
     issue_count = len(issues_dict)
@@ -677,168 +723,155 @@ def changelog_reports(
         )
     f.close()
 
+    if debug_test is True:
+        print("**lifetime_stats**")
+        print(lifetime_stats)
+    return lifetime_stats
+
 
 ## Main:
 
-print("\nQuerying: " + board_name)
+if __name__ == "__main__":
 
-# start_days_ago = 10
-for nb_days_before in range(start_days_ago, -1, -1):
+    # cleanup testdump
+    try:
+        os.remove(testdump_filename)
+    except:
+        print("No previous testdump present.")
 
-    # set date to search, accounting for date range desired (via start_date)
-    # search_date = (today - start_date) + nb_days_before
+    print("\nQuerying: " + board_name)
 
-    # really an Int (today already is a date)
-    search_date = (today - start_date).days + nb_days_before
-    # Update JQL queries:
+    # start_days_ago = 10
+    for nb_days_before in range(start_days_ago, -1, -1):
 
-    # includes feature requests, if they started in Triage
-    # conservative: Escalation Batter won't show, because they'll create then later Batter=No
-    # issues now hidden by the DONE column do show up in this count!
-    # batter issues could be included by were batter, now aren't, same day. As an aside, there's LOTS of chaff in
-    # these boards. Over-filtering is probably good, especially for untouched issues.
-    # tl;dr grabs issues created on SEARCHED DATE
-    QUERY_CREATED_IN_TRIAGE = (
-        "project ="
-        + board_name
-        + ' and "For Escalation Batter?" =No AND ( status was "'
-        + target_column
-        + '"  during (startOfDay(-'
-        + str(search_date)
-        + ") ,endOfDay(-"
-        + str(search_date)
-        + ") ) AND  created >= startOfDay(-"
-        + str(search_date)
-        + ") AND created <= endOfDay(-"
-        + str(search_date)
-        + ")  )"
-    )
-    ttft_dict = jira_query(
-        # tl;dr grabs issues created on SEARCHED DATE -> stores under First Touch date
-        board_name,
-        QUERY_CREATED_IN_TRIAGE,
-        nb_days_before,
-        start_date,
-        "New Issues",
-    )
+        # set date to search, accounting for date range desired (via start_date)
+        # search_date = (today - start_date) + nb_days_before
 
-    # report progress
-    percent_done = ((start_days_ago - search_date) / start_days_ago) * 100
-    # percent_done =
-    #     (1 - ((search_date - (start_date.days) / (start_date.days - start_days_ago).days)
-    # )) * 100  # math is right, search date is a number, so need to convert
+        # really an Int (today already is a date)
+        search_date = (today - start_date).days + nb_days_before
+        # Update JQL queries:
 
-    if percent_done % 10 <= 1:
-        print(board_name + ": " + str(percent_done) + "% \n", end=" ", flush=True)
-
-# unpack TTFL (move all writes here?)
-ttft_file = str(board_name + "-ttft_" + filename_today + ".csv")
-# write_to_csv(ttft_dict, "TTFT", ttft_file, board_name, start_days_ago, today)
-
-# open file: prepare to write
-f = open(ttft_file, "a+")
-name = "TTFT"
-for nb_days_before in range(start_days_ago, -1, -1):
-    # concerneddate = today - datetime.timedelta(days=nb_days_before)
-    # this is how we account for offset. slightly different than the above, may want to match later
-    concerneddate = start_date - datetime.timedelta(days=nb_days_before)
-    target_date = str(concerneddate)
-
-    # if present, pull and unpack
-    if target_date in ttft_dict:
-
-        # get (issue key, ttft) pairs:
-        points_from_date = ttft_dict[target_date]
-
-        # get count
-        ttft_count = len(points_from_date)
-
-    # if not, prepare a zero for stats
-    else:
-        points_from_date = [("n/a", 0)]
-
-        # set count
-        ttft_count = 0
-
-    # extract just the ttft values:
-    ttft_values = [point[1] for point in points_from_date]
-
-    # calculate stats:
-    ttft_avg = mean(ttft_values)
-    ttft_max = max(ttft_values)
-    ttft_sum = sum(ttft_values)
-
-    f.write(
-        "%s;%s;%s;%d;%d;%d;%d;%s  \r\n"
-        % (
-            name,
-            target_date,
-            points_from_date,
-            ttft_sum,
-            ttft_avg,
-            ttft_max,
-            ttft_count,
-            board_name,
+        # includes feature requests, if they started in Triage
+        # conservative: Escalation Batter won't show, because they'll create then later Batter=No
+        # issues now hidden by the DONE column do show up in this count!
+        # batter issues could be included by were batter, now aren't, same day. As an aside, there's LOTS of chaff in
+        # these boards. Over-filtering is probably good, especially for untouched issues.
+        # tl;dr grabs issues created on SEARCHED DATE
+        QUERY_CREATED_IN_TRIAGE = (
+            "project ="
+            + board_name
+            + ' and "For Escalation Batter?" =No AND ( status was "'
+            + target_column
+            + '"  during (startOfDay(-'
+            + str(search_date)
+            + ") ,endOfDay(-"
+            + str(search_date)
+            + ") ) AND  created >= startOfDay(-"
+            + str(search_date)
+            + ") AND created <= endOfDay(-"
+            + str(search_date)
+            + ")  )"
         )
-    )
-
-f.close()
-
-f = open("orphans.dat", "a+")
-for orphan in orphans:
-    f.write(str(orphan) + "\n")
-
-
-f.close()
-
-print(board_name + " API query complete: " + filename + " finished.")
-
-if debug is True:
-    print("\n\n Issues Dict: \n" + str(issues_dict))
-
-
-# add fieldbreakdowns (AGENT only, at this time)
-if print_reports is True:
-    if board_name == "AGENT":
-        fields_breakdown_report(
-            issues_dict,
-            fields_list,
+        ttft_dict, test_issues_dict = jira_query(
+            # tl;dr grabs issues created on SEARCHED DATE -> stores under First Touch date
             board_name,
+            QUERY_CREATED_IN_TRIAGE,
+            nb_days_before,
             start_date,
-            filename_today,
-            start_days_ago,
+            "New Issues",
         )
 
-        changelog_reports(
-            issues_dict,
-            board_name,
-            start_date,
-            filename_today,
-            start_days_ago,
-            done_issues_list,
+        # report progress
+        percent_done = ((start_days_ago - search_date) / start_days_ago) * 100
+        # percent_done =
+        #     (1 - ((search_date - (start_date.days) / (start_date.days - start_days_ago).days)
+        # )) * 100  # math is right, search date is a number, so need to convert
+
+        if percent_done % 10 <= 1:
+            print(board_name + ": " + str(percent_done) + "% \n", end=" ", flush=True)
+
+    # unpack TTFL (move all writes here?)
+    ttft_file = str(board_name + "-ttft_" + filename_today + ".csv")
+    # write_to_csv(ttft_dict, "TTFT", ttft_file, board_name, start_days_ago, today)
+
+    # open file: prepare to write
+    f = open(ttft_file, "a+")
+    name = "TTFT"
+    for nb_days_before in range(start_days_ago, -1, -1):
+        # concerneddate = today - datetime.timedelta(days=nb_days_before)
+        # this is how we account for offset. slightly different than the above, may want to match later
+        concerneddate = start_date - datetime.timedelta(days=nb_days_before)
+        target_date = str(concerneddate)
+
+        # if present, pull and unpack
+        if target_date in ttft_dict:
+
+            # get (issue key, ttft) pairs:
+            points_from_date = ttft_dict[target_date]
+
+            # get count
+            ttft_count = len(points_from_date)
+
+        # if not, prepare a zero for stats
+        else:
+            points_from_date = [("n/a", 0)]
+
+            # set count
+            ttft_count = 0
+
+        # extract just the ttft values:
+        ttft_values = [point[1] for point in points_from_date]
+
+        # calculate stats:
+        ttft_avg = mean(ttft_values)
+        ttft_max = max(ttft_values)
+        ttft_sum = sum(ttft_values)
+
+        f.write(
+            "%s;%s;%s;%d;%d;%d;%d;%s  \r\n"
+            % (
+                name,
+                target_date,
+                points_from_date,
+                ttft_sum,
+                ttft_avg,
+                ttft_max,
+                ttft_count,
+                board_name,
+            )
         )
 
+    f.close()
 
-# write_to_csv(ttft_dict, "TTFT", ttft_file, board_name, start_days_ago, today)
+    f = open("orphans.dat", "a+")
+    for orphan in orphans:
+        f.write(str(orphan) + "\n")
 
-# open file: prepare to write
+    f.close()
 
+    print(board_name + " API query complete: " + filename + " finished.")
 
-# def write_to_csv(self, data, name, filename, board_name, start_days_ago, today):
+    if debug is True:
+        print("\n\n Issues Dict: \n" + str(issues_dict))
 
-#     # write issue count
-#     f = open(filename, "a+")
+    # add fieldbreakdowns (AGENT only, at this time)
+    if print_reports is True:
+        if board_name == "AGENT":
+            fields_breakdown_report(
+                issues_dict,
+                fields_list,
+                board_name,
+                start_date,
+                filename_today,
+                start_days_ago,
+            )
 
-#     for nb_days_before in range(start_days_ago, -1, -1):
+            changelog_reports(
+                issues_dict,
+                board_name,
+                start_date,
+                filename_today,
+                start_days_ago,
+                done_issues_list,
+            )
 
-#         concerneddate = today - datetime.timedelta(days=nb_days_before)
-#         dconcerneddate = concerneddate.strftime("%m/%d/%Y")
-
-#         if dconcerneddate in data:
-#             f.write("%s;%s;%d;%s  \r\n" % (name, dconcerneddate, data, board_name))
-
-#         if not print date, 0
-
-#         # f.write(json.dumps(response.json(), indent=4, separators=(",", ": ")))
-
-#     f.close()

@@ -19,3 +19,11 @@ To run:
 When each has finished, run:
 
 3. `./combine_reports.sh`
+
+## Usage
+
+- Set *start_days_ago* for your purpose:
+  - start_days_ago = 90 for changelog and tag breakdown reports
+  - start_days_ago = 120 for returning escalation count data
+
+Today, these use two different windows, but there's one query made. For now, toggling is required.
