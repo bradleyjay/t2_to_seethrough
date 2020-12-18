@@ -183,7 +183,7 @@ class TestJiraPull(unittest.TestCase):
         # "correct" values
         clifetime_stats = {
             "lifetime_summed_days": 43,
-            "issue_count": 3,
+            "lifetime_count": 3,
             "lifetime_average": 14.333333333333334,
             "lifetime_p50": 11,
             "lifetime_p75": 11,

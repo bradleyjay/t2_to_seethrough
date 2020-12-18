@@ -27,3 +27,14 @@ When each has finished, run:
   - start_days_ago = 120 for returning escalation count data
 
 Today, these use two different windows, but there's one query made. For now, toggling is required.
+
+## Running Tests
+
+jira_pull
+├── jira_stats_api_call.py
+└── tests
+      └── test_jira_pull.py
+
+To run our tests, use:
+
+`python3 -m unittest tests.test_jira_pull`

@@ -17,31 +17,16 @@ except:
     print("Error: list of boards missing.")
     exit()
 
-nb_days_before = int(1)  # place holder
-start_days_ago = 90  # 120 for 3 months (we use rolling window 30 days, so need one extra. For reports, 90)
-start_date = datetime.date(2020, 11, 1)
 
-# for lifetime, create proper TZ'd datetime obj. And, set cutoff to 30 days past start date.
-start_datetime = datetime.datetime.combine(
-    start_date, datetime.datetime.min.time()
-).replace(tzinfo=timezone.utc)
-lookahead_days = 30
-cutoff_datetime = start_datetime + datetime.timedelta(days=lookahead_days)
+##################
+### Initalization
+##################
 
-
-headers = {"Accept": "application/json"}
-ttft_dict = {}
-issues_dict = {}
-
-# dict for manually sorting bug vs. preventable for D
-done_issues_list = []
-
-orphans = []
-
+### Toggles
 # store by touch date, or card creation date?
 ttft_storebytouch = False
 
-# testdump the API response and exit if True
+# testdump the API response if True
 # debug = True
 debug = False
 
@@ -53,27 +38,63 @@ debug_test = False
 print_reports = True
 # print_reports = False
 
-# Eng only support board? Check eenginneering triage
-# serveerless, security
+
+### Reporting window, datetime math
+
+# Set window of time to examine in days. First day chronologically = window_start
+reporting_window = 32  # 120 for 3 months (we use a rolling window 30 days in postproc, so need one month extra)
+window_end_date = datetime.date(2020, 11, 1)
+
+window_end_datetime = datetime.datetime.combine(
+    window_end_date, datetime.datetime.min.time()
+).replace(tzinfo=timezone.utc)
+
+window_start_datetime = window_end_datetime - datetime.timedelta(days=reporting_window)
+window_start_no_rolling = window_start_datetime + datetime.timedelta(
+    days=30
+)  # changelog, fields breakdown reports shouldn't include rolling window
+
+# Look forward in time from the window end an additional X days to watch for issue resolution, moving to eng, etc. Impacts changelog, fields breakdown data
+lookahead_days = 30  # leave this at 30.
+cutoff_datetime = window_end_datetime + datetime.timedelta(days=lookahead_days)
+
+# date math
+today = datetime.datetime.now(datetime.timezone.utc).date()  # now has tz
+dtoday = today.strftime("%m/%d/%Y")
+filename_today = today.strftime("%m-%d-%Y")
+
+### Misc Init
+headers = {"Accept": "application/json"}
+ttft_dict = {}
+issues_dict = {}
+
+# dict for manually sorting bug vs. preventable for D
+done_issues_list = []
+
+orphans = []
+nb_days_before = int(1)  # init - days counter in main loop
+
+### Board-specific handling
+# Eng-only support board? Check enginneering triage (serverless, security)
 if board_name in ["SLES", "SCRS", "PRMS", "WEBINT"]:
     target_column = "Engineering Triage"
 else:
     target_column = "T2 Triage"
 
-# prep dates
-today = datetime.datetime.now(datetime.timezone.utc).date()  # now has tz
-dtoday = today.strftime("%m/%d/%Y")
-filename_today = today.strftime("%m-%d-%Y")
+# Fields to check, board-specific
+if board_name == "AGENT":
+    fields_list = ["issuetype", "issue_service", "issue_issue"]
+else:
+    fields_list = []
 
 # output file cleanup
 filename = str(board_name + "-count_" + filename_today + ".csv")
 testdump_filename = str(board_name + "-testdump.csv")
 
-# flesh out for other boards
-if board_name == "AGENT":
-    fields_list = ["issuetype", "issue_service", "issue_issue"]
-else:
-    fields_list = []
+
+######################
+### Helper Functions
+######################
 
 
 def get_field_breakdowns(issue_metadata, issue):
@@ -222,7 +243,7 @@ def get_and_parse_changelog(issue, auth):
     return issue
 
 
-def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
+def jira_query(board_name, jqlquery, nb_days_before, window_end_date, name):
 
     # prep, make the API call
     url = (
@@ -236,7 +257,7 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
 
     if debug_test is True:
         print("**jira_query**:")
-        print(board_name, jqlquery, nb_days_before, start_date, name)
+        print(board_name, jqlquery, nb_days_before, window_end_date, name)
         print("**jira_json**")
         print(response.json())
         print("\n\n\n\n\n\n")
@@ -246,7 +267,7 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
         return print("Error from API: " + str(response) + " for: \n" + jqlquery)
 
     # prepare to write
-    concerneddate = start_date - datetime.timedelta(days=nb_days_before)
+    concerneddate = window_end_date - datetime.timedelta(days=nb_days_before)
     dconcerneddate = concerneddate.strftime("%m/%d/%Y")
     total = response.json()["total"]
 
@@ -265,8 +286,6 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
         f = open(testdump_filename, "a+")
         f.write(json.dumps(response.json(), indent=4, separators=(",", ": ")))
         f.close()
-        # print("Testdump complete - " + testdump_filename)
-        # sys.exit()
 
     # write issue count
     f = open(filename, "a+")
@@ -364,7 +383,7 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
                     )
                     delta_time = (comment_date - issue_created).days
 
-                    # if we're storinng TTFT by CREATION DATE, swap the date here now that deltaT is calculated
+                    # if we're storing TTFT by CREATION DATE, swap the date here now that deltaT is calculated
                     if ttft_storebytouch is False:
                         comment_date = issue_created
 
@@ -385,12 +404,14 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
                 if delta_time == None:
                     # theres a LOT of these.... #fixme
                     print("\nNo matching comment for issue " + str(issue_key))
-                    delta_time = (start_date - issue_created.date()).days
+                    delta_time = (window_end_date - issue_created.date()).days
                     ttft_dict[str(issue_created.date())] = [(issue_key, delta_time)]
                     orphans.append([(issue_key, delta_time)])
 
                 # print("TTFT Dict:")
                 # print(ttft_dict)
+
+    test_issues_dict = issues_dict
 
     if debug_test is True:
         # test issues dict, just for testing
@@ -398,7 +419,6 @@ def jira_query(board_name, jqlquery, nb_days_before, start_date, name):
         print("**test_issues_dict**")
         print(test_issues_dict)
 
-    test_issues_dict = issues_dict
     return ttft_dict, test_issues_dict
     """
 What we have above is a dict (ttft_dict) where the keys are the date of first touch, and the data
@@ -412,7 +432,7 @@ avg 5 days later". But, LATER
 
 Next steps:
 
-# - note: safety is on -> start_days_ago = 10 on 210 below
+# - note: safety is on -> reporting_window = 10 on 210 below
 - make sure TTFT is getting stored in the dict [x]
 - right now, creation date for the card and comments ignores timezone at ingestion. Ingest, make it utc, 
 use that date instead. [ x ]
@@ -428,7 +448,12 @@ by not the requester", around line 154)
 
 
 def fields_breakdown_report(
-    issues_dict, fields_list, board_name, start_date, filename_today, start_days_ago
+    issues_dict,
+    fields_list,
+    board_name,
+    window_end_date,
+    filename_today,
+    reporting_window,
 ):
     ## for testing
     if debug_test is True:
@@ -437,9 +462,9 @@ def fields_breakdown_report(
             issues_dict,
             fields_list,
             board_name,
-            start_date,
+            window_end_date,
             filename_today,
-            start_days_ago,
+            reporting_window,
         )
 
     fields_breakdown = {}
@@ -448,33 +473,38 @@ def fields_breakdown_report(
     for field in fields_list:
         fields_breakdown[field] = {}
 
-    issue_count = len(issues_dict)
+    breakdown_count = 0  # refactor. lifetime count = lifetime count. This gating could happen once, filter the list for only issues not using rolling window. Could filter list, pass that to both changelog and breakdown
     # init for issuetype -> service mapping
     service_by_issues = {}
 
     # unpack issues: increment count for each field value, nested under the field's name in fields_breakdown
+    # only take stats for issues in prime 3 months (no rolling window)
     for issue in issues_dict:
-        for field in fields_list:
-            # print(issues_dict[issue][field])
-            # print(fields_breakdown[field])
-            if issues_dict[issue][field] in fields_breakdown[field]:
-                fields_breakdown[field][issues_dict[issue][field]] += 1
-            else:
-                fields_breakdown[field][issues_dict[issue][field]] = 1
-            if field == "issue_service":
+        if (
+            issues_dict[issue]["issue_created"] > window_start_no_rolling
+        ):  # ignore the "rolling window" first 30 days
+            breakdown_count += 1
+            for field in fields_list:
+                # print(issues_dict[issue][field])
+                # print(fields_breakdown[field])
+                if issues_dict[issue][field] in fields_breakdown[field]:
+                    fields_breakdown[field][issues_dict[issue][field]] += 1
+                else:
+                    fields_breakdown[field][issues_dict[issue][field]] = 1
+                if field == "issue_service":
 
-                _issue_type = issues_dict[issue]["issuetype"]
-                _issue_service = issues_dict[issue]["issue_service"]
+                    _issue_type = issues_dict[issue]["issuetype"]
+                    _issue_service = issues_dict[issue]["issue_service"]
 
-                if _issue_type in service_by_issues:
-                    if _issue_service in service_by_issues[_issue_type]:
-                        service_by_issues[_issue_type][_issue_service] += 1
+                    if _issue_type in service_by_issues:
+                        if _issue_service in service_by_issues[_issue_type]:
+                            service_by_issues[_issue_type][_issue_service] += 1
+
+                        else:
+                            service_by_issues[_issue_type][_issue_service] = 1
 
                     else:
-                        service_by_issues[_issue_type][_issue_service] = 1
-
-                else:
-                    service_by_issues[_issue_type] = {_issue_service: 1}
+                        service_by_issues[_issue_type] = {_issue_service: 1}
 
     # print(service_by_issues)
     # calculate percentages, dump to csv
@@ -493,9 +523,9 @@ def fields_breakdown_report(
         "%s;%s;%s;%s \r\n"
         % (
             board_name,
-            start_date,
-            "Prev days incl:" + str(start_days_ago),
-            "Total issues:" + str(issue_count),
+            window_end_date,
+            "Prev days incl:" + str(reporting_window),
+            "Total issues:" + str(breakdown_count),
         )
     )
     f.write("\n%s;%s;%s;%s \r\n" % ("Field", "Field Value", "Count", "Percentage"))
@@ -505,7 +535,7 @@ def fields_breakdown_report(
         for field_val in fields_breakdown[field]:
             # print(type(field_val))
             fields_breakdown_pct[field][field_val] = round(
-                fields_breakdown[field][field_val] / issue_count * 100, 2
+                fields_breakdown[field][field_val] / breakdown_count * 100, 2
             )
 
             f.write(
@@ -558,9 +588,9 @@ def fields_breakdown_report(
 def changelog_reports(
     issues_dict,
     board_name,
-    start_date,
+    window_end_date,
     filename_today,
-    start_days_ago,
+    reporting_window,
     done_issues_list,
 ):
     if debug_test is True:
@@ -568,25 +598,32 @@ def changelog_reports(
         print(
             issues_dict,
             board_name,
-            start_date,
+            window_end_date,
             filename_today,
-            start_days_ago,
+            reporting_window,
             done_issues_list,
         )
 
     # print report - stats on #, % cards reaching Eng; stats on lifetime
-    issue_count = len(issues_dict)
+    lifetime_count = 0
 
     total_reaching_eng = 0
     lifetime_total = 0
     lifetime_raw = []
     for issue in issues_dict:
-        total_reaching_eng += issues_dict[issue]["reached_eng"]
-        lifetime_raw.append(issues_dict[issue]["lifetime"])
-        lifetime_total += issues_dict[issue]["lifetime"]
+        # only take stats for issues in prime 3 months (no rolling window)
+        if issues_dict[issue]["issue_created"] > window_start_no_rolling:
+            lifetime_count += 1
+            total_reaching_eng += issues_dict[issue]["reached_eng"]
+            lifetime_raw.append(issues_dict[issue]["lifetime"])
+            lifetime_total += issues_dict[issue]["lifetime"]
 
+    if len(lifetime_raw) == 0:
+        return print(
+            "Warning: Lifetime reporting aborted - no Issues present outside of rolling window."
+        )
     #  reaching eng stats
-    pct_reaching_eng = total_reaching_eng / issue_count
+    pct_reaching_eng = total_reaching_eng / lifetime_count
 
     # lifetime stats
 
@@ -605,15 +642,15 @@ def changelog_reports(
             35,
             42,
             150
-            # fixme int(start_days_ago + lookahead_days),
+            # fixme int(reporting_window + lookahead_days),
         ],
     )  # outputs values, bins. # NOTE: histogram chopped at last bin value. MUST use large final value here.
 
     lifetime_stats = {}
 
     lifetime_stats["lifetime_summed_days"] = lifetime_total
-    lifetime_stats["issue_count"] = issue_count
-    lifetime_stats["lifetime_average"] = lifetime_total / issue_count
+    lifetime_stats["lifetime_count"] = lifetime_count
+    lifetime_stats["lifetime_average"] = lifetime_total / lifetime_count
     lifetime_stats["lifetime_p50"] = np.percentile(
         lifetime_raw, 50, interpolation="lower"
     )
@@ -648,9 +685,9 @@ def changelog_reports(
         % (
             "ChangeLog report: reached eng, lifetime",
             board_name,
-            start_date,
-            "Prev days incl:" + str(start_days_ago),
-            "Total issues:" + str(issue_count),
+            window_end_date,
+            "Prev days incl:" + str(reporting_window),
+            "Total issues:" + str(lifetime_count),
         )
     )
     f.write(
@@ -660,7 +697,7 @@ def changelog_reports(
             "\nCount of Issues Reaching Eng:",
             total_reaching_eng,
             "\nTotal Issues:",
-            issue_count,
+            lifetime_count,
             "\nPercentage Reaching Eng:",
             pct_reaching_eng,
         )
@@ -680,8 +717,6 @@ def changelog_reports(
     for i in range(0, len(lifetime_values)):
         f.write("%.2f;%.2f \r\n" % (lifetime_bins[i], lifetime_values[i]))
 
-    for i in range(0, len(lifetime_values)):
-        f.write("%.2f;%.2f \r\n" % (lifetime_bins[i], lifetime_values[i]))
     f.close()
 
     # done_issues_list -> links for manual sorting
@@ -741,14 +776,14 @@ if __name__ == "__main__":
 
     print("\nQuerying: " + board_name)
 
-    # start_days_ago = 10
-    for nb_days_before in range(start_days_ago, -1, -1):
+    # reporting_window = 10
+    for nb_days_before in range(reporting_window, -1, -1):
 
-        # set date to search, accounting for date range desired (via start_date)
-        # search_date = (today - start_date) + nb_days_before
+        # set date to search, accounting for date range desired (via window_end_date)
+        # search_date = (today - window_end_date) + nb_days_before
 
         # really an Int (today already is a date)
-        search_date = (today - start_date).days + nb_days_before
+        search_date = (today - window_end_date).days + nb_days_before
         # Update JQL queries:
 
         # includes feature requests, if they started in Triage
@@ -777,14 +812,14 @@ if __name__ == "__main__":
             board_name,
             QUERY_CREATED_IN_TRIAGE,
             nb_days_before,
-            start_date,
+            window_end_date,
             "New Issues",
         )
 
         # report progress
-        percent_done = ((start_days_ago - search_date) / start_days_ago) * 100
+        percent_done = ((reporting_window - search_date) / reporting_window) * 100
         # percent_done =
-        #     (1 - ((search_date - (start_date.days) / (start_date.days - start_days_ago).days)
+        #     (1 - ((search_date - (window_end_date.days) / (window_end_date.days - reporting_window).days)
         # )) * 100  # math is right, search date is a number, so need to convert
 
         if percent_done % 10 <= 1:
@@ -792,15 +827,15 @@ if __name__ == "__main__":
 
     # unpack TTFL (move all writes here?)
     ttft_file = str(board_name + "-ttft_" + filename_today + ".csv")
-    # write_to_csv(ttft_dict, "TTFT", ttft_file, board_name, start_days_ago, today)
+    # write_to_csv(ttft_dict, "TTFT", ttft_file, board_name, reporting_window, today)
 
     # open file: prepare to write
     f = open(ttft_file, "a+")
     name = "TTFT"
-    for nb_days_before in range(start_days_ago, -1, -1):
+    for nb_days_before in range(reporting_window, -1, -1):
         # concerneddate = today - datetime.timedelta(days=nb_days_before)
         # this is how we account for offset. slightly different than the above, may want to match later
-        concerneddate = start_date - datetime.timedelta(days=nb_days_before)
+        concerneddate = window_end_date - datetime.timedelta(days=nb_days_before)
         target_date = str(concerneddate)
 
         # if present, pull and unpack
@@ -861,17 +896,17 @@ if __name__ == "__main__":
                 issues_dict,
                 fields_list,
                 board_name,
-                start_date,
+                window_end_date,
                 filename_today,
-                start_days_ago,
+                reporting_window,
             )
 
             changelog_reports(
                 issues_dict,
                 board_name,
-                start_date,
+                window_end_date,
                 filename_today,
-                start_days_ago,
+                reporting_window,
                 done_issues_list,
             )
 
