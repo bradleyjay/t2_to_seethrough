@@ -135,6 +135,7 @@ class TestJiraPull(unittest.TestCase):
     search_date = 48
     window_end_date = datetime.date(2020, 11, 1)
     auth = 4  # placeholder, mocking the API call anyway so it doesn't matter
+    ttft_dict = {}
 
     def test_fields_breakdown_report(self):
         (
@@ -2889,12 +2890,13 @@ class TestJiraPull(unittest.TestCase):
             self.board_name, self.target_column, self.search_date, self.auth
         )
 
-        a, test_issues_dict = unpack_api_response(
+        test_issues_dict = unpack_api_response(
             self.board_name,
             self.nb_days_before,
             self.window_end_date,
             api_response,
             self.auth,
+            self.ttft_dict,
         )
 
         # "correct" values

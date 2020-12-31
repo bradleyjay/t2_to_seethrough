@@ -243,6 +243,103 @@ def get_and_parse_changelog(issue, auth):
     return issue
 
 
+def calculate_ttft(issue, auth, ttft_dict):
+
+    #########################################
+    ## TTFT SECTION
+    ## Parse comments to assess touches
+    ## (#REFACTOR)
+    #########################################
+
+    # can't check for non-reporer comments without reporter email. Move this lower if
+    # we end up using comments for touch count or something, only needed for TTFT
+
+    # API Call for Comments
+    # Format: "https://datadoghq.atlassian.net/rest/api/2/issue/81840/comment"
+    url = (
+        "https://datadoghq.atlassian.net/rest/api/2/issue/"
+        + issue["issue_id"]
+        + "/comment"
+        # + "&maxResults=0"
+    )
+
+    comments_response = requests.request("GET", url, headers=headers, auth=auth)
+    delta_time = None
+
+    if comments_response and "comments" in comments_response.json():
+        for comment in comments_response.json()["comments"]:
+
+            # comments are a LIST, ordered by time
+            # iterate til author != issue author
+            if comment["author"]["emailAddress"] == issue["issue_reporter"]:
+                continue
+
+            # take date, parse to simpler date (this'll be our TTFT dict key)
+            raw_comment_date = comment["created"]
+
+            # get time delta for (comment created - issue created)
+            # includes tz
+            comment_date = datetime.datetime.strptime(
+                raw_comment_date, "%Y-%m-%dT%H:%M:%S.%f%z"
+            )
+            delta_time = (comment_date - issue["issue_created"]).days
+
+            # if we're storing TTFT by CREATION DATE, swap the date here now that deltaT is calculated
+            if ttft_storebytouch is False:
+                comment_date = issue["issue_created"]
+
+            # -> append that to dict's value, under TTFT date
+            # first check if its there. Yes? Append.
+            if str(comment_date.date()) in ttft_dict:
+
+                ttft_dict[str(comment_date.date())].append(
+                    (issue["issue_key"], delta_time)
+                )
+
+            else:
+
+                ttft_dict[str(comment_date.date())] = [(issue["issue_key"], delta_time)]
+                break
+
+        # handling for no comment matching (orphaned case)
+        if delta_time == None:
+            # theres a LOT of these.... #fixme
+            print("\nNo matching comment for issue " + str(issue["issue_key"]))
+            delta_time = (window_end_date - issue["issue_created"].date()).days
+            ttft_dict[str(issue["issue_created"].date())] = [
+                (issue["issue_key"], delta_time)
+            ]
+            orphans.append([(issue["issue_key"], delta_time)])
+
+    return ttft_dict
+
+    """
+What we have above is a dict (ttft_dict) where the keys are the date of first touch, and the data
+is a list of tuples (issue key, the delta between creation date and first comment).
+
+So, at the EoD, avg(bucket) is the TTFT for the day, and count(bucket) is 
+how many first touches we had that day.
+
+Later, it might be useful to bucket by CREATION DATE, to say "cards created on this day were touched on 
+avg 5 days later". But, LATER
+
+Next steps:
+
+# - note: safety is on -> reporting_window = 10 on 210 below
+- make sure TTFT is getting stored in the dict [x]
+- right now, creation date for the card and comments ignores timezone at ingestion. Ingest, make it utc, 
+use that date instead. [ x ]
+- Write to CSV: After all days have been queried, iterate through possible dates, mapping to a csv output. 
+Date, number of first touches, avg time per, max time per. If no first touches that day, 
+fill it in, end result should be a spreadsheet of every day, with data for every day. [x]
+- general cleanup. there's a lot of variables getting converted, or called with .date() etc, repeatly.
+
+(note that any escalation untouched is ~tossed out, atm. No handling above for a "no comments" or "no comments
+by not the requester", around line 154)
+
+    """
+
+
 def jira_query(board_name, target_column, search_date, auth):
 
     # prep, make the API call
@@ -293,15 +390,29 @@ def jira_query(board_name, target_column, search_date, auth):
         return print("Error from API: " + str(api_response) + " for: \n" + jqlquery)
 
     return api_response
-    # Refactor: link this
 
 
 # Refactor: new func for unpacking only
 def unpack_api_response(
-    board_name, nb_days_before, window_end_date, api_response, auth
+    board_name, nb_days_before, window_end_date, api_response, auth, ttft_dict
 ):
 
-    # prepare to write
+    """
+    First, we'll pull the number of issues as a whole, and write to file.
+
+    Then, we iterate through all issues in the response object. For each one,
+    we add it to the issues_dict, contribute to the changelog report, and 
+    tag breakdowns, and ttft before moving on to the next issue in the response.
+
+    When complete, we'll have processed every issue created on the current
+    iteration's day.
+
+    """
+
+    ################################
+    ## Generate Escalations Count ##
+    ################################
+
     concerneddate = window_end_date - datetime.timedelta(days=nb_days_before)
     dconcerneddate = concerneddate.strftime("%m/%d/%Y")
     total = api_response.json()["total"]
@@ -315,23 +426,16 @@ def unpack_api_response(
             + str(total)
         )
 
-    # debug mode - print raw JSON response to file, appending each day.
-    # Refactor: Borked by scop for now. testdump_file namee computed at main init, this used to be in main
-    # if debug is True:
-
-    #     f = open(testdump_filename, "a+")
-    #     f.write(json.dumps(api_response.json(), indent=4, separators=(",", ": ")))
-    #     f.close()
-
-    # write issue count
-    # Refactor: calc filename here?
+    # write issue count to file
     f = open(filename, "a+")
-    # f.write(json.dumps(api_response.json(), indent=4, separators=(",", ": ")))
     name = "New Issues"  # Refactor: this used to get passed, but only used here. There's a global name, that's for another report, and assigned directly at write time.
     f.write("%s;%s;%d;%s  \r\n" % (name, dconcerneddate, total, board_name))
     f.close()
 
-    # TTFL
+    ###########################
+    ### Prepare issues_dict ###
+    ###########################
+
     # unpack issues into list: need issue id, created date, creator
 
     for issue in api_response.json()["issues"]:
@@ -356,7 +460,8 @@ def unpack_api_response(
         # default lifetime
         default_lifetime = (cutoff_datetime - issue_created).days
 
-        # create dict of dicts: each issue's a dict, then that dict has the following:
+        # actually create issues_dict
+        # dict of dicts: each issue's a dict, then that dict has the following:
         issues_dict[issue_id] = {
             "issue_id": issue_id,
             "issue_reporter": issue_reporter,
@@ -365,6 +470,13 @@ def unpack_api_response(
             "reached_eng": 0,
             "lifetime": default_lifetime,  # update this to issue today - creatoin datee (the max)
         }
+
+        ################################################
+        ## Add to Field Breakdowns, Changelog reports ##
+        ################################################
+
+        if issue_reporter is not None:
+            ttft_dict = calculate_ttft(issues_dict[issue_id], auth, ttft_dict)
 
         # add fieldbreakdowns (AGENT only, at this time)
         if board_name == "AGENT":
@@ -381,108 +493,14 @@ def unpack_api_response(
             #
         ):
             done_issues_list.append(issues_dict[issue_id])
-        #########################################
-        ## TTFT SECTION
-        ## Parse comments to assess touches
-        ## (#REFACTOR)
-        #########################################
-
-        # can't check for non-reporer comments without reporter email. Move this lower if
-        # we end up using comments for touch count or something, only needed for TTFT
-
-        if issue_reporter is not None:
-            # API Call for Comments
-            # Format: "https://datadoghq.atlassian.net/rest/api/2/issue/81840/comment"
-            url = (
-                "https://datadoghq.atlassian.net/rest/api/2/issue/"
-                + issue_id
-                + "/comment"
-                # + "&maxResults=0"
-            )
-
-            comments_response = requests.request("GET", url, headers=headers, auth=auth)
-            delta_time = None
-
-            if comments_response and "comments" in comments_response.json():
-                for comment in comments_response.json()["comments"]:
-
-                    # comments are a LIST, ordered by time
-                    # iterate til author != issue author
-                    if comment["author"]["emailAddress"] == issue_reporter:
-                        continue
-
-                    # take date, parse to simpler date (this'll be our TTFT dict key)
-                    raw_comment_date = comment["created"]
-
-                    # get time delta for (comment created - issue created)
-                    # includes tz
-                    comment_date = datetime.datetime.strptime(
-                        raw_comment_date, "%Y-%m-%dT%H:%M:%S.%f%z"
-                    )
-                    delta_time = (comment_date - issue_created).days
-
-                    # if we're storing TTFT by CREATION DATE, swap the date here now that deltaT is calculated
-                    if ttft_storebytouch is False:
-                        comment_date = issue_created
-
-                    # -> append that to dict's value, under TTFT date
-                    # first check if its there. Yes? Append.
-                    if str(comment_date.date()) in ttft_dict:
-
-                        ttft_dict[str(comment_date.date())].append(
-                            (issue_key, delta_time)
-                        )
-
-                    else:
-
-                        ttft_dict[str(comment_date.date())] = [(issue_key, delta_time)]
-                        break
-
-                # handling for no comment matching (orphaned case)
-                if delta_time == None:
-                    # theres a LOT of these.... #fixme
-                    print("\nNo matching comment for issue " + str(issue_key))
-                    delta_time = (window_end_date - issue_created.date()).days
-                    ttft_dict[str(issue_created.date())] = [(issue_key, delta_time)]
-                    orphans.append([(issue_key, delta_time)])
-
-                # print("TTFT Dict:")
-                # print(ttft_dict)
-
-    test_issues_dict = issues_dict
 
     if debug_test is True:
-        # test issues dict, just for testing
+        # issues dict, just for testing
 
-        print("**test_issues_dict**")
-        print(test_issues_dict)
+        print("**issues_dict**")
+        print(issues_dict)
 
-    return ttft_dict, test_issues_dict
-    """
-What we have above is a dict (ttft_dict) where the keys are the date of first touch, and the data
-is a list of tuples (issue key, the delta between creation date and first comment).
-
-So, at the EoD, avg(bucket) is the TTFT for the day, and count(bucket) is 
-how many first touches we had that day.
-
-Later, it might be useful to bucket by CREATION DATE, to say "cards created on this day were touched on 
-avg 5 days later". But, LATER
-
-Next steps:
-
-# - note: safety is on -> reporting_window = 10 on 210 below
-- make sure TTFT is getting stored in the dict [x]
-- right now, creation date for the card and comments ignores timezone at ingestion. Ingest, make it utc, 
-use that date instead. [ x ]
-- Write to CSV: After all days have been queried, iterate through possible dates, mapping to a csv output. 
-Date, number of first touches, avg time per, max time per. If no first touches that day, 
-fill it in, end result should be a spreadsheet of every day, with data for every day. [x]
-- general cleanup. there's a lot of variables getting converted, or called with .date() etc, repeatly.
-
-(note that any escalation untouched is ~tossed out, atm. No handling above for a "no comments" or "no comments
-by not the requester", around line 154)
-
-    """
+    return issues_dict
 
 
 def fields_breakdown_report(
@@ -815,7 +833,7 @@ if __name__ == "__main__":
     print("\nQuerying: " + board_name)
 
     auth = HTTPBasicAuth(os.environ.get("JIRA_EMAIL"), os.environ.get("JIRA_API_KEY"))
-    print("auth" + "\n" + str(auth))
+
     # reporting_window = 10
     for nb_days_before in range(reporting_window, -1, -1):
 
@@ -835,11 +853,17 @@ if __name__ == "__main__":
 
         # used to pass NAME to jira_qurey, used in print stp. why? it was "New Issues"
         # what goes to and from this?
-        ttft_dict, test_issues_dict = unpack_api_response(
-            board_name, nb_days_before, window_end_date, api_response, auth
+        issues_dict = unpack_api_response(
+            board_name, nb_days_before, window_end_date, api_response, auth, ttft_dict
         )
 
-        # report progress
+        # debug mode - print raw JSON response to file, appending each day.
+        if debug is True:
+            f = open(testdump_filename, "a+")
+            f.write(json.dumps(api_response.json(), indent=4, separators=(",", ": ")))
+            f.close()
+
+        # report progress to command line
         percent_done = ((reporting_window - search_date) / reporting_window) * 100
         # percent_done =
         #     (1 - ((search_date - (window_end_date.days) / (window_end_date.days - reporting_window).days)
