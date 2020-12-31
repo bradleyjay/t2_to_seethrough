@@ -38,3 +38,11 @@ jira_pull
 To run our tests, use:
 
 `python3 -m unittest tests.test_jira_pull`
+
+## Open Issues:
+
+- TTFT isn't quite right. Choosing to file issues under the day they were touched vs. the day they were created skews reporting quite a bit. Investigate, determine if filing under creation date checks out.
+- Refactor into helper functions
+- Improve how we determine if an issue actually reached Eng (today, we just check if the Issue reached Eng Triage / In Progress)
+- Route data to Datadog, automate running of script
+- Pull data for other teams
