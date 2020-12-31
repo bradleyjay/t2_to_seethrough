@@ -2,7 +2,8 @@
 
 source creds.dat
 
-echo 'JIRA PULL - grab Issue data and stats from Jira for individual boards, or all at once.'
+echo $'\n\n###############\n## JIRA PULL ##\n###############'
+echo $'\nGrab Issue data and stats from Jira for individual boards, or all at once. \nSee README.md for more information.'
 echo $'\nboardnames:'
 
 cat board_list.dat

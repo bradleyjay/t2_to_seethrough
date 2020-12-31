@@ -243,33 +243,68 @@ def get_and_parse_changelog(issue, auth):
     return issue
 
 
-def jira_query(board_name, jqlquery, nb_days_before, window_end_date, name):
+def jira_query(board_name, target_column, search_date, auth):
 
     # prep, make the API call
+
+    # Update JQL queries:
+
+    # includes feature requests, if they started in Triage
+    # conservative: Escalation Batter won't show, because they'll create then later Batter=No
+    # issues now hidden by the DONE column do show up in this count!
+    # batter issues could be included by were batter, now aren't, same day. As an aside, there's LOTS of chaff in
+    # these boards. Over-filtering is probably good, especially for untouched issues.
+    # tl;dr grabs issues created on SEARCHED DATE
+
+    jqlquery = (
+        "project ="
+        + board_name
+        + ' and "For Escalation Batter?" =No AND ( status was "'
+        + target_column
+        + '"  during (startOfDay(-'
+        + str(search_date)
+        + ") ,endOfDay(-"
+        + str(search_date)
+        + ") ) AND  created >= startOfDay(-"
+        + str(search_date)
+        + ") AND created <= endOfDay(-"
+        + str(search_date)
+        + ")  )"
+    )
+
+    # build API call URL
     url = (
         "https://datadoghq.atlassian.net/rest/api/3/search?jql="
         + jqlquery
         # + "&maxResults=0"
     )
 
-    auth = HTTPBasicAuth(os.environ.get("JIRA_EMAIL"), os.environ.get("JIRA_API_KEY"))
-    response = requests.request("GET", url, headers=headers, auth=auth)
+    api_response = requests.request("GET", url, headers=headers, auth=auth)
 
-    if debug_test is True:
-        print("**jira_query**:")
-        print(board_name, jqlquery, nb_days_before, window_end_date, name)
-        print("**jira_json**")
-        print(response.json())
-        print("\n\n\n\n\n\n")
+    # if debug_test is True:
+    #     print("**jira_query**:")
+    #     print(board_name, jqlquery, nb_days_before, window_end_date, name)
+    #     print("**jira_json**")
+    #     print(response.json())
+    #     print("\n\n\n\n\n\n")
 
     # error out if response wasn't clean
-    if str(response) != "<Response [200]>":
-        return print("Error from API: " + str(response) + " for: \n" + jqlquery)
+    if str(api_response) != "<Response [200]>":
+        return print("Error from API: " + str(api_response) + " for: \n" + jqlquery)
+
+    return api_response
+    # Refactor: link this
+
+
+# Refactor: new func for unpacking only
+def unpack_api_response(
+    board_name, nb_days_before, window_end_date, api_response, auth
+):
 
     # prepare to write
     concerneddate = window_end_date - datetime.timedelta(days=nb_days_before)
     dconcerneddate = concerneddate.strftime("%m/%d/%Y")
-    total = response.json()["total"]
+    total = api_response.json()["total"]
 
     # max returned issues is 100 - throw a warning if that's the case
     if int(total) >= 100:
@@ -281,22 +316,25 @@ def jira_query(board_name, jqlquery, nb_days_before, window_end_date, name):
         )
 
     # debug mode - print raw JSON response to file, appending each day.
-    if debug is True:
+    # Refactor: Borked by scop for now. testdump_file namee computed at main init, this used to be in main
+    # if debug is True:
 
-        f = open(testdump_filename, "a+")
-        f.write(json.dumps(response.json(), indent=4, separators=(",", ": ")))
-        f.close()
+    #     f = open(testdump_filename, "a+")
+    #     f.write(json.dumps(api_response.json(), indent=4, separators=(",", ": ")))
+    #     f.close()
 
     # write issue count
+    # Refactor: calc filename here?
     f = open(filename, "a+")
-    # f.write(json.dumps(response.json(), indent=4, separators=(",", ": ")))
+    # f.write(json.dumps(api_response.json(), indent=4, separators=(",", ": ")))
+    name = "New Issues"  # Refactor: this used to get passed, but only used here. There's a global name, that's for another report, and assigned directly at write time.
     f.write("%s;%s;%d;%s  \r\n" % (name, dconcerneddate, total, board_name))
     f.close()
 
     # TTFL
     # unpack issues into list: need issue id, created date, creator
 
-    for issue in response.json()["issues"]:
+    for issue in api_response.json()["issues"]:
         issue_id = issue["id"]
         issue_key = issue["key"]
         try:
@@ -776,6 +814,8 @@ if __name__ == "__main__":
 
     print("\nQuerying: " + board_name)
 
+    auth = HTTPBasicAuth(os.environ.get("JIRA_EMAIL"), os.environ.get("JIRA_API_KEY"))
+    print("auth" + "\n" + str(auth))
     # reporting_window = 10
     for nb_days_before in range(reporting_window, -1, -1):
 
@@ -784,36 +824,19 @@ if __name__ == "__main__":
 
         # really an Int (today already is a date)
         search_date = (today - window_end_date).days + nb_days_before
-        # Update JQL queries:
 
-        # includes feature requests, if they started in Triage
-        # conservative: Escalation Batter won't show, because they'll create then later Batter=No
-        # issues now hidden by the DONE column do show up in this count!
-        # batter issues could be included by were batter, now aren't, same day. As an aside, there's LOTS of chaff in
-        # these boards. Over-filtering is probably good, especially for untouched issues.
-        # tl;dr grabs issues created on SEARCHED DATE
-        QUERY_CREATED_IN_TRIAGE = (
-            "project ="
-            + board_name
-            + ' and "For Escalation Batter?" =No AND ( status was "'
-            + target_column
-            + '"  during (startOfDay(-'
-            + str(search_date)
-            + ") ,endOfDay(-"
-            + str(search_date)
-            + ") ) AND  created >= startOfDay(-"
-            + str(search_date)
-            + ") AND created <= endOfDay(-"
-            + str(search_date)
-            + ")  )"
-        )
-        ttft_dict, test_issues_dict = jira_query(
+        api_response = jira_query(
             # tl;dr grabs issues created on SEARCHED DATE -> stores under First Touch date
             board_name,
-            QUERY_CREATED_IN_TRIAGE,
-            nb_days_before,
-            window_end_date,
-            "New Issues",
+            target_column,
+            search_date,
+            auth,
+        )
+
+        # used to pass NAME to jira_qurey, used in print stp. why? it was "New Issues"
+        # what goes to and from this?
+        ttft_dict, test_issues_dict = unpack_api_response(
+            board_name, nb_days_before, window_end_date, api_response, auth
         )
 
         # report progress

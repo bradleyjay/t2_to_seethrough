@@ -1,8 +1,14 @@
 import unittest
 import datetime
+from datetime import date, timezone
 from unittest import mock
 
-from jira_stats_api_call import fields_breakdown_report, changelog_reports, jira_query
+from jira_stats_api_call import (
+    fields_breakdown_report,
+    changelog_reports,
+    jira_query,
+    unpack_api_response,
+)
 
 
 class TestJiraPull(unittest.TestCase):
@@ -124,6 +130,11 @@ class TestJiraPull(unittest.TestCase):
         int(2),
         "New Issues",
     )
+    board_name = "AGENT"
+    target_column = "T2 Triage"
+    search_date = 48
+    window_end_date = datetime.date(2020, 11, 1)
+    auth = 4  # placeholder, mocking the API call anyway so it doesn't matter
 
     def test_fields_breakdown_report(self):
         (
@@ -2866,12 +2877,24 @@ class TestJiraPull(unittest.TestCase):
     @mock.patch("requests.request", side_effect=mocked_api_response)
     def test_jira_query(self, mock_api):
 
-        a, test_issues_dict = jira_query(
+        # a, test_issues_dict = jira_query(
+        #     self.board_name,
+        #     self.jqlquery,
+        #     self.nb_days_before,
+        #     self.start_date,
+        #     self.name,
+        # )
+
+        api_response = jira_query(
+            self.board_name, self.target_column, self.search_date, self.auth
+        )
+
+        a, test_issues_dict = unpack_api_response(
             self.board_name,
-            self.jqlquery,
             self.nb_days_before,
-            self.start_date,
-            self.name,
+            self.window_end_date,
+            api_response,
+            self.auth,
         )
 
         # "correct" values
