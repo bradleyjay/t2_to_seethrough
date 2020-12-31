@@ -1,12 +1,17 @@
 #!/bin/bash
 
 source creds.dat
-while IFS= read -r line; do
-# echo $line
+rm orphans.dat || echo 'No Orphans.dat file to remove.'
 
-  # for i in `seq 1 3`;
-    # do
-  python3 jira_stats_api_call.py $line &
-    # done
+# uncomment to test single call
+# python3 jira_stats_api_call.py METS
+python3 jira_stats_api_call.py AGENT 
 
-done < board_list.dat
+# # comment out the following to test
+# while IFS= read -r line; do
+
+#   rm ${line}-*.csv || echo 'No $line csv data files to remove.'
+  
+#   python3 jira_stats_api_call.py $line &
+
+# done < board_list.dat

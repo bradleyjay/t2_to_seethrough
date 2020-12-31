@@ -1,0 +1,393 @@
+{
+    "self": "https://datadoghq.atlassian.net/rest/api/3/issue/AGENT-1538/changelog?maxResults=100&startAt=0",
+    "maxResults": 100,
+    "startAt": 0,
+    "total": 11,
+    "isLast": true,
+    "values": [
+      {
+        "id": "579507",
+        "author": {
+          "self": "https://datadoghq.atlassian.net/rest/api/3/user?accountId=557058%3Aa01b4872-0086-4bc3-903e-23f26637afa2",
+          "accountId": "557058:a01b4872-0086-4bc3-903e-23f26637afa2",
+          "avatarUrls": {
+            "48x48": "https://secure.gravatar.com/avatar/bc07317d8cbdde0ff466674bb68a9dd7?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FZJ-1.png",
+            "24x24": "https://secure.gravatar.com/avatar/bc07317d8cbdde0ff466674bb68a9dd7?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FZJ-1.png",
+            "16x16": "https://secure.gravatar.com/avatar/bc07317d8cbdde0ff466674bb68a9dd7?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FZJ-1.png",
+            "32x32": "https://secure.gravatar.com/avatar/bc07317d8cbdde0ff466674bb68a9dd7?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FZJ-1.png"
+          },
+          "displayName": "Zendesk Support for Jira",
+          "active": true,
+          "timeZone": "America/New_York",
+          "accountType": "app"
+        },
+        "created": "2020-05-25T20:43:19.876-0400",
+        "items": [
+          {
+            "field": "labels",
+            "fieldtype": "jira",
+            "fieldId": "labels",
+            "from": null,
+            "fromString": "",
+            "to": null,
+            "toString": "jira_escalated"
+          }
+        ]
+      },
+      {
+        "id": "579508",
+        "author": {
+          "self": "https://datadoghq.atlassian.net/rest/api/3/user?accountId=70121%3A4c29b63a-6f8b-4566-a1a2-b72cceead2f5",
+          "accountId": "70121:4c29b63a-6f8b-4566-a1a2-b72cceead2f5",
+          "emailAddress": "aryeh.zinn@datadoghq.com",
+          "avatarUrls": {
+            "48x48": "https://secure.gravatar.com/avatar/97395270dd51acecd248723448f0641e?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAZ-6.png",
+            "24x24": "https://secure.gravatar.com/avatar/97395270dd51acecd248723448f0641e?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAZ-6.png",
+            "16x16": "https://secure.gravatar.com/avatar/97395270dd51acecd248723448f0641e?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAZ-6.png",
+            "32x32": "https://secure.gravatar.com/avatar/97395270dd51acecd248723448f0641e?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAZ-6.png"
+          },
+          "displayName": "Aryeh Zinn",
+          "active": true,
+          "timeZone": "America/New_York",
+          "accountType": "atlassian"
+        },
+        "created": "2020-05-25T20:43:42.552-0400",
+        "items": [
+          {
+            "field": "description",
+            "fieldtype": "jira",
+            "fieldId": "description",
+            "from": null,
+            "fromString": "Hey Team! \n\nThomson Reuters recently reached out stating that they received an agent error on Windows. The error in question is printed in both the agent.log and the status.log files. \n\nThe error in question is:\n\n```=========\nCollector\n=========\n  Error initializing Python\n  =========================\n    - could not load runtime python for version 3: Unable to open library libdatadog-agent-three.dll, error code: 127\n\nLooking through Trello, it looks as if the issue was apparently solved in the introduction of agent 7.19.2: https://trello.com/c/ohXshscV/268-python-initialization-errors-on-windows-agent. \n\nAs well as this, it looks like a potential fix beforehand was to install a specific Windows Update: https://trello.com/c/BjzkDHae/141-agent-716-python-3-error-windows#comment-5e1f2b921cb8ff0993c84d28. I've gone and suggested that to the customer for now as a temporary fix. \n\nThe main issue seems to be that we apparently fixed the issue in agent 7.19.2, however the current agent IS a 7.19.2 agent. Is there something happening in this specific case that I'm not aware of? \n\nOther details:\n\nplatform: Windows Server 2008 R2 Standard\nplatformFamily: Windows Server 2008 R2 Standard\nplatformVersion: 6.1 Build 7601\n\n\n        h3. Attachments\n\n\n        [image001.jpg|https://datadog.zendesk.com/attachments/token/PzxBibNbawqjoDkJ9pIEigguR/?name=image001.jpg]\n\n[datadog-agent-2020-05-25-13-47-38.zip|https://datadog.zendesk.com/attachments/token/JhW3r48vVORQFWruv8nyYBi1g/?name=datadog-agent-2020-05-25-13-47-38.zip]\n\n[agent_log.txt|https://datadog.zendesk.com/attachments/token/F0umDNWrUvVwW0JYshjEP9x3P/?name=agent_log.txt]\n\n\n      ~* Please see Zendesk Support tab for further comments and attachments.~",
+            "to": null,
+            "toString": "Hey Team\\! \n\nThomson Reuters recently reached out stating that they received an agent error on Windows. The error in question is printed in both the agent.log and the status.log files. \n\nThe error in question is:\n\n{noformat}=========\nCollector\n=========\nError initializing Python\n=========================\ncould not load runtime python for version 3: Unable to open library libdatadog-agent-three.dll, error code: 127{noformat}\n\nLooking through Trello, it looks as if the issue was apparently solved in the introduction of agent 7.19.2: [https://trello.com/c/ohXshscV/268-python-initialization-errors-on-windows-agent|https://trello.com/c/ohXshscV/268-python-initialization-errors-on-windows-agent]. \n\nAs well as this, it looks like a potential fix beforehand was to install a specific Windows Update: [https://trello.com/c/BjzkDHae/141-agent-716-python-3-error-windows#comment-5e1f2b921cb8ff0993c84d28|https://trello.com/c/BjzkDHae/141-agent-716-python-3-error-windows#comment-5e1f2b921cb8ff0993c84d28]. I've gone and suggested that to the customer for now as a temporary fix. \n\nThe main issue seems to be that we apparently fixed the issue in agent 7.19.2, however the current agent IS a 7.19.2 agent. Is there something happening in this specific case that I'm not aware of? \n\nOther details:\n\nplatform: Windows Server 2008 R2 Standard\nplatformFamily: Windows Server 2008 R2 Standard\nplatformVersion: 6.1 Build 7601\n\nh3. Attachments\n\n[image001.jpg|https://datadog.zendesk.com/attachments/token/PzxBibNbawqjoDkJ9pIEigguR/?name=image001.jpg]\n\n[datadog-agent-2020-05-25-13-47-38.zip|https://datadog.zendesk.com/attachments/token/JhW3r48vVORQFWruv8nyYBi1g/?name=datadog-agent-2020-05-25-13-47-38.zip]\n\n[agent_log.txt|https://datadog.zendesk.com/attachments/token/F0umDNWrUvVwW0JYshjEP9x3P/?name=agent_log.txt]\n\n* Please see Zendesk Support tab for further comments and attachments."
+          }
+        ]
+      },
+      {
+        "id": "601972",
+        "author": {
+          "self": "https://datadoghq.atlassian.net/rest/api/3/user?accountId=5d4b47740fa6d40d14fc7af0",
+          "accountId": "5d4b47740fa6d40d14fc7af0",
+          "emailAddress": "steven.yuen@datadoghq.com",
+          "avatarUrls": {
+            "48x48": "https://secure.gravatar.com/avatar/7eff4c9ffba50faef5d186b970561fbb?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FSY-1.png",
+            "24x24": "https://secure.gravatar.com/avatar/7eff4c9ffba50faef5d186b970561fbb?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FSY-1.png",
+            "16x16": "https://secure.gravatar.com/avatar/7eff4c9ffba50faef5d186b970561fbb?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FSY-1.png",
+            "32x32": "https://secure.gravatar.com/avatar/7eff4c9ffba50faef5d186b970561fbb?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FSY-1.png"
+          },
+          "displayName": "Steven Yuen",
+          "active": true,
+          "timeZone": "America/New_York",
+          "accountType": "atlassian"
+        },
+        "created": "2020-06-01T19:23:54.282-0400",
+        "items": [
+          {
+            "field": "For Chef/Puppet/Ansible - Debug Logs URL(s)",
+            "fieldtype": "custom",
+            "fieldId": "customfield_10279",
+            "from": null,
+            "fromString": null,
+            "to": null,
+            "toString": "na"
+          },
+          {
+            "field": "Install Logs URL(s)",
+            "fieldtype": "custom",
+            "fieldId": "customfield_10280",
+            "from": null,
+            "fromString": null,
+            "to": null,
+            "toString": "na"
+          },
+          {
+            "field": "Datadog-install.log URL",
+            "fieldtype": "custom",
+            "fieldId": "customfield_10281",
+            "from": null,
+            "fromString": null,
+            "to": null,
+            "toString": "na"
+          },
+          {
+            "field": "WaAppAgent.log URL",
+            "fieldtype": "custom",
+            "fieldId": "customfield_10282",
+            "from": null,
+            "fromString": null,
+            "to": null,
+            "toString": "na"
+          },
+          {
+            "field": "DatadogWindowsAgent\\<DD_AGENT_EXTENSION_VERSION> URL",
+            "fieldtype": "custom",
+            "fieldId": "customfield_10283",
+            "from": null,
+            "fromString": null,
+            "to": null,
+            "toString": "na"
+          },
+          {
+            "field": "issuetype",
+            "fieldtype": "jira",
+            "fieldId": "issuetype",
+            "from": "11622",
+            "fromString": "Agent Core",
+            "to": "11628",
+            "toString": "Agent Platform"
+          }
+        ]
+      },
+      {
+        "id": "602001",
+        "author": {
+          "self": "https://datadoghq.atlassian.net/rest/api/3/user?accountId=5d4b47740fa6d40d14fc7af0",
+          "accountId": "5d4b47740fa6d40d14fc7af0",
+          "emailAddress": "steven.yuen@datadoghq.com",
+          "avatarUrls": {
+            "48x48": "https://secure.gravatar.com/avatar/7eff4c9ffba50faef5d186b970561fbb?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FSY-1.png",
+            "24x24": "https://secure.gravatar.com/avatar/7eff4c9ffba50faef5d186b970561fbb?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FSY-1.png",
+            "16x16": "https://secure.gravatar.com/avatar/7eff4c9ffba50faef5d186b970561fbb?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FSY-1.png",
+            "32x32": "https://secure.gravatar.com/avatar/7eff4c9ffba50faef5d186b970561fbb?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FSY-1.png"
+          },
+          "displayName": "Steven Yuen",
+          "active": true,
+          "timeZone": "America/New_York",
+          "accountType": "atlassian"
+        },
+        "created": "2020-06-01T19:30:50.137-0400",
+        "items": [
+          {
+            "field": "status",
+            "fieldtype": "jira",
+            "fieldId": "status",
+            "from": "11886",
+            "fromString": "T2 Triage",
+            "to": "11888",
+            "toString": "Engineering Triage"
+          }
+        ]
+      },
+      {
+        "id": "604575",
+        "author": {
+          "self": "https://datadoghq.atlassian.net/rest/api/3/user?accountId=5ab95ab48835f42a6509fef8",
+          "accountId": "5ab95ab48835f42a6509fef8",
+          "emailAddress": "fanny.jiang@datadoghq.com",
+          "avatarUrls": {
+            "48x48": "https://secure.gravatar.com/avatar/633257100571496bb8df39e426ab4e01?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FFJ-6.png",
+            "24x24": "https://secure.gravatar.com/avatar/633257100571496bb8df39e426ab4e01?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FFJ-6.png",
+            "16x16": "https://secure.gravatar.com/avatar/633257100571496bb8df39e426ab4e01?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FFJ-6.png",
+            "32x32": "https://secure.gravatar.com/avatar/633257100571496bb8df39e426ab4e01?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FFJ-6.png"
+          },
+          "displayName": "Fanny Jiang",
+          "active": true,
+          "timeZone": "America/New_York",
+          "accountType": "atlassian"
+        },
+        "created": "2020-06-02T11:13:57.288-0400",
+        "items": [
+          {
+            "field": "assignee",
+            "fieldtype": "jira",
+            "fieldId": "assignee",
+            "from": null,
+            "fromString": null,
+            "to": "5d4b48db0aaab10c537f96d1",
+            "toString": "Kylian Serrania",
+            "tmpFromAccountId": null,
+            "tmpToAccountId": "5d4b48db0aaab10c537f96d1"
+          }
+        ]
+      },
+      {
+        "id": "647484",
+        "author": {
+          "self": "https://datadoghq.atlassian.net/rest/api/3/user?accountId=557058%3Af58131cb-b67d-43c7-b30d-6b58d40bd077",
+          "accountId": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077",
+          "avatarUrls": {
+            "48x48": "https://secure.gravatar.com/avatar/600529a9c8bfef89daa848e6db28ed2d?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAJ-0.png",
+            "24x24": "https://secure.gravatar.com/avatar/600529a9c8bfef89daa848e6db28ed2d?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAJ-0.png",
+            "16x16": "https://secure.gravatar.com/avatar/600529a9c8bfef89daa848e6db28ed2d?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAJ-0.png",
+            "32x32": "https://secure.gravatar.com/avatar/600529a9c8bfef89daa848e6db28ed2d?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAJ-0.png"
+          },
+          "displayName": "Automation for Jira",
+          "active": true,
+          "timeZone": "America/New_York",
+          "accountType": "app"
+        },
+        "created": "2020-06-12T15:19:12.460-0400",
+        "items": [
+          {
+            "field": "Last Comment Date",
+            "fieldtype": "custom",
+            "fieldId": "customfield_10409",
+            "from": null,
+            "fromString": null,
+            "to": "2020-06-09",
+            "toString": "9/Jun/20"
+          }
+        ],
+        "historyMetadata": {}
+      },
+      {
+        "id": "652877",
+        "author": {
+          "self": "https://datadoghq.atlassian.net/rest/api/3/user?accountId=5d4b47685b8ea70c7e4f48a9",
+          "accountId": "5d4b47685b8ea70c7e4f48a9",
+          "emailAddress": "hanting.zhang@datadoghq.com",
+          "avatarUrls": {
+            "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b47685b8ea70c7e4f48a9/5463cb84-5167-4a91-a11f-74efb90b53f3/48",
+            "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b47685b8ea70c7e4f48a9/5463cb84-5167-4a91-a11f-74efb90b53f3/24",
+            "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b47685b8ea70c7e4f48a9/5463cb84-5167-4a91-a11f-74efb90b53f3/16",
+            "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b47685b8ea70c7e4f48a9/5463cb84-5167-4a91-a11f-74efb90b53f3/32"
+          },
+          "displayName": "Hanting Zhang",
+          "active": true,
+          "timeZone": "America/New_York",
+          "accountType": "atlassian"
+        },
+        "created": "2020-06-15T10:29:03.399-0400",
+        "items": [
+          {
+            "field": "status",
+            "fieldtype": "jira",
+            "fieldId": "status",
+            "from": "11888",
+            "fromString": "Engineering Triage",
+            "to": "11887",
+            "toString": "Blocked/Waiting on Customer"
+          }
+        ]
+      },
+      {
+        "id": "670000",
+        "author": {
+          "self": "https://datadoghq.atlassian.net/rest/api/3/user?accountId=557058%3Af58131cb-b67d-43c7-b30d-6b58d40bd077",
+          "accountId": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077",
+          "avatarUrls": {
+            "48x48": "https://secure.gravatar.com/avatar/600529a9c8bfef89daa848e6db28ed2d?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAJ-0.png",
+            "24x24": "https://secure.gravatar.com/avatar/600529a9c8bfef89daa848e6db28ed2d?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAJ-0.png",
+            "16x16": "https://secure.gravatar.com/avatar/600529a9c8bfef89daa848e6db28ed2d?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAJ-0.png",
+            "32x32": "https://secure.gravatar.com/avatar/600529a9c8bfef89daa848e6db28ed2d?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAJ-0.png"
+          },
+          "displayName": "Automation for Jira",
+          "active": true,
+          "timeZone": "America/New_York",
+          "accountType": "app"
+        },
+        "created": "2020-06-21T20:58:14.263-0400",
+        "items": [
+          {
+            "field": "status",
+            "fieldtype": "jira",
+            "fieldId": "status",
+            "from": "11887",
+            "fromString": "Blocked/Waiting on Customer",
+            "to": "11886",
+            "toString": "T2 Triage"
+          }
+        ],
+        "historyMetadata": {}
+      },
+      {
+        "id": "670001",
+        "author": {
+          "self": "https://datadoghq.atlassian.net/rest/api/3/user?accountId=557058%3Af58131cb-b67d-43c7-b30d-6b58d40bd077",
+          "accountId": "557058:f58131cb-b67d-43c7-b30d-6b58d40bd077",
+          "avatarUrls": {
+            "48x48": "https://secure.gravatar.com/avatar/600529a9c8bfef89daa848e6db28ed2d?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAJ-0.png",
+            "24x24": "https://secure.gravatar.com/avatar/600529a9c8bfef89daa848e6db28ed2d?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAJ-0.png",
+            "16x16": "https://secure.gravatar.com/avatar/600529a9c8bfef89daa848e6db28ed2d?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAJ-0.png",
+            "32x32": "https://secure.gravatar.com/avatar/600529a9c8bfef89daa848e6db28ed2d?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAJ-0.png"
+          },
+          "displayName": "Automation for Jira",
+          "active": true,
+          "timeZone": "America/New_York",
+          "accountType": "app"
+        },
+        "created": "2020-06-21T20:58:14.691-0400",
+        "items": [
+          {
+            "field": "Last Comment Date",
+            "fieldtype": "custom",
+            "fieldId": "customfield_10409",
+            "from": "2020-06-09",
+            "fromString": "9/Jun/20",
+            "to": "2020-06-22",
+            "toString": "22/Jun/20"
+          }
+        ],
+        "historyMetadata": {}
+      },
+      {
+        "id": "670580",
+        "author": {
+          "self": "https://datadoghq.atlassian.net/rest/api/3/user?accountId=557058%3Aa77fa6ab-b83c-4e88-b323-0a05879090d6",
+          "accountId": "557058:a77fa6ab-b83c-4e88-b323-0a05879090d6",
+          "emailAddress": "ian.bucad@datadoghq.com",
+          "avatarUrls": {
+            "48x48": "https://secure.gravatar.com/avatar/69b2ec19a193821c51a443aa2f73e75c?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FIB-0.png",
+            "24x24": "https://secure.gravatar.com/avatar/69b2ec19a193821c51a443aa2f73e75c?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FIB-0.png",
+            "16x16": "https://secure.gravatar.com/avatar/69b2ec19a193821c51a443aa2f73e75c?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FIB-0.png",
+            "32x32": "https://secure.gravatar.com/avatar/69b2ec19a193821c51a443aa2f73e75c?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FIB-0.png"
+          },
+          "displayName": "Ian Bucad",
+          "active": true,
+          "timeZone": "UTC",
+          "accountType": "atlassian"
+        },
+        "created": "2020-06-22T04:34:05.973-0400",
+        "items": [
+          {
+            "field": "resolution",
+            "fieldtype": "jira",
+            "fieldId": "resolution",
+            "from": null,
+            "fromString": null,
+            "to": "10000",
+            "toString": "Done"
+          },
+          {
+            "field": "status",
+            "fieldtype": "jira",
+            "fieldId": "status",
+            "from": "11886",
+            "fromString": "T2 Triage",
+            "to": "10001",
+            "toString": "Done"
+          }
+        ]
+      },
+      {
+        "id": "974469",
+        "author": {
+          "self": "https://datadoghq.atlassian.net/rest/api/3/user?accountId=5ce6bc34f433c20ff1132e7a",
+          "accountId": "5ce6bc34f433c20ff1132e7a",
+          "emailAddress": "gini.salamat@datadoghq.com",
+          "avatarUrls": {
+            "48x48": "https://secure.gravatar.com/avatar/39bc7b2491e2cd3b22f3453c081557c7?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FGS-3.png",
+            "24x24": "https://secure.gravatar.com/avatar/39bc7b2491e2cd3b22f3453c081557c7?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FGS-3.png",
+            "16x16": "https://secure.gravatar.com/avatar/39bc7b2491e2cd3b22f3453c081557c7?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FGS-3.png",
+            "32x32": "https://secure.gravatar.com/avatar/39bc7b2491e2cd3b22f3453c081557c7?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FGS-3.png"
+          },
+          "displayName": "Gini Salamat",
+          "active": true,
+          "timeZone": "America/New_York",
+          "accountType": "atlassian"
+        },
+        "created": "2020-09-17T13:25:00.524-0400",
+        "items": [
+          {
+            "field": "Workflow",
+            "fieldtype": "jira",
+            "from": "106148",
+            "fromString": "SUPPORT: T2 Triage Workflow",
+            "to": "190851",
+            "toString": "SUPPORT: T2 Triage Workflow (w/o FR)"
+          }
+        ]
+      }
+    ]
+  }

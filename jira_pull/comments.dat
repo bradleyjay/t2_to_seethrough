@@ -1,0 +1,425 @@
+{
+    "startAt": 0,
+    "maxResults": 1048576,
+    "total": 11,
+    "comments": [
+        {
+            "self": "https://datadoghq.atlassian.net/rest/api/2/issue/86611/comment/135918",
+            "id": "135918",
+            "author": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b4a06a70af10ceed32792",
+                "accountId": "5d4b4a06a70af10ceed32792",
+                "emailAddress": "mike.carlos@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/48",
+                    "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/24",
+                    "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/16",
+                    "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/32"
+                },
+                "displayName": "Mike Carlos",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "body": "Hey [~accountid:5d4b47605b8ea70c7e4f48a7] \ud83d\udc4b \n\nThanks for flagging here. Given some of the details we\u2019ve been able to identify I\u2019m inclined to think this may be a configuration discrepancy. This [event|https://support-admin.us1.prod.dog/admin/switch_handle_get/org_id/49875?next_url=%2Fevent%2Fevent%3Fid%3D5461877252275816396] details that the agent was started on this host. However, only two hosts are running on this autoscaling group at the moment. Neither of them being the host in question, {{i-03dad52b414458fb1}}. If we graph this to the date of the event and scope directly to the container where this host lives, {{datadog-agent}}. We see that one host is {{N/A}}.\n\n* [notebook|https://support-admin.us1.prod.dog/admin/switch_handle_get/org_id/49875?next_url=%2Fnotebook%2F217232%2Fsupport-metrics]\n* [screenshot|https://cl.ly/88b5f6e17d9f]\n\nCan we follow-up with the customer and get the following details? It\u2019d be best to first rule out whether this {{N/A}} host is to blame.\n\n* The following [event|https://support-admin.us1.prod.dog/admin/switch_handle_get/org_id/49875?next_url=%2Fevent%2Fevent%3Fid%3D5461877252275816396] shows that this host was part of the autoscaling group {{eks-e8b8f4ee-b432-3cf2-7d16-c2c0746c90da}} and cluster {{integrate-events-production}}. Is that expected? If so, can they provide a flare from one of the hosts in the same autoscaling group ({{autoscaling_group:eks-e8b8f4ee-b432-3cf2-7d16-c2c0746c90da}}). Either a DEBUG flare from {{host:i-04ef510b2d1f2038f}} or {{host:i-0c8f4513bb31ad451}}.\n* In addition, can they send us a TRACE level flare from the host in question({{i-03dad52b414458fb1}})? A TRACE level flare will allow us to view all the payloads this host is sending to DD. ([docs|https://docs.datadoghq.com/agent/troubleshooting/debug_mode/?tab=agentv6v7#agent-log-level])\n* Is {{i-03dad52b414458fb1}} still running on their side? When was this host taken down? When was it initially spun up?\n\n----\n\n*Internal*\n\nCould this be the host they are after? ([screenshot|https://cl.ly/354ec0d6a21a]) If so, then why is this host coming up as {{N/A}}? Might help if we get a flare from the working hosts in this autoscaling group and compare configurations:\n\n* host:i-04ef510b2d1f2038f\n* host:i-0c8f4513bb31ad451\n\nThe following log seems to indicate that the hostname was resolved:\n\n{noformat}2020-05-18 14:01:33 UTC | CORE | DEBUG | (pkg/util/kubernetes/kubelet/kubelet.go:665 in getKubeletHostFromDocker) | Resolved host name ip-10-84-3-178.us-west-2.compute.internal provided by docker to [{10.84.3.178 }]{noformat}\n\nNo host in our system with this names.\n\nAt the time of the event, we can see that an additional container under the {{host:N/A}} group was spun up:\n\n* [gif|https://cl.ly/7382ebbe1f10]\n\nWhen we break this out by {{kube_container_name}}. The container in which this host belongs is {{kube_container_name:alb-ingress-controller}}:\n\n* [screenshot|https://cl.ly/b8f531fe655a]\n\nThis could be a red herring but the time this container started running lines up with the time when the event was received.",
+            "updateAuthor": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b4a06a70af10ceed32792",
+                "accountId": "5d4b4a06a70af10ceed32792",
+                "emailAddress": "mike.carlos@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/48",
+                    "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/24",
+                    "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/16",
+                    "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/32"
+                },
+                "displayName": "Mike Carlos",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "created": "2020-05-26T11:54:39.967-0400",
+            "updated": "2020-05-26T11:55:00.544-0400",
+            "jsdPublic": true
+        },
+        {
+            "self": "https://datadoghq.atlassian.net/rest/api/2/issue/86611/comment/136486",
+            "id": "136486",
+            "author": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b47605b8ea70c7e4f48a7",
+                "accountId": "5d4b47605b8ea70c7e4f48a7",
+                "emailAddress": "homere.faivre@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://secure.gravatar.com/avatar/5b576d42d8bf20a2588d9edf8e055026?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FHF-6.png",
+                    "24x24": "https://secure.gravatar.com/avatar/5b576d42d8bf20a2588d9edf8e055026?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FHF-6.png",
+                    "16x16": "https://secure.gravatar.com/avatar/5b576d42d8bf20a2588d9edf8e055026?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FHF-6.png",
+                    "32x32": "https://secure.gravatar.com/avatar/5b576d42d8bf20a2588d9edf8e055026?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FHF-6.png"
+                },
+                "displayName": "Hom\u00e8re Faivre",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "body": "Thanks [~accountid:5d4b4a06a70af10ceed32792] \\!\n\nI\u2019ve added the two requested flares:\ni-0c8f4513bb31ad451 : Working Host with DEBUG level logging\ni-03dad52b414458fb1 : Missing Host with TRACE level logging\n\ni-03dad52b414458fb1  is still running and has been running for the last 20 days, it hasn\u2019t been down. These nodes are part of the EKS managed node group so EKS can add and remove nodes depending on the workload. \n\nTo be precise, this is the creation time of the node -> CreationTimestamp: Wed, 06 May 2020 13:03:22 +0100\n\nLet me know if you need more information \\! \ud83d\ude47\u200d\u2642\ufe0f ",
+            "updateAuthor": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b47605b8ea70c7e4f48a7",
+                "accountId": "5d4b47605b8ea70c7e4f48a7",
+                "emailAddress": "homere.faivre@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://secure.gravatar.com/avatar/5b576d42d8bf20a2588d9edf8e055026?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FHF-6.png",
+                    "24x24": "https://secure.gravatar.com/avatar/5b576d42d8bf20a2588d9edf8e055026?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FHF-6.png",
+                    "16x16": "https://secure.gravatar.com/avatar/5b576d42d8bf20a2588d9edf8e055026?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FHF-6.png",
+                    "32x32": "https://secure.gravatar.com/avatar/5b576d42d8bf20a2588d9edf8e055026?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FHF-6.png"
+                },
+                "displayName": "Hom\u00e8re Faivre",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "created": "2020-05-27T05:35:58.282-0400",
+            "updated": "2020-05-27T05:35:58.282-0400",
+            "jsdPublic": true
+        },
+        {
+            "self": "https://datadoghq.atlassian.net/rest/api/2/issue/86611/comment/140361",
+            "id": "140361",
+            "author": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b4a06a70af10ceed32792",
+                "accountId": "5d4b4a06a70af10ceed32792",
+                "emailAddress": "mike.carlos@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/48",
+                    "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/24",
+                    "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/16",
+                    "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/32"
+                },
+                "displayName": "Mike Carlos",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "body": "Hey Intake Team \ud83d\udc4b \n\nCustomer is experiencing a case where a particular host is failing to resolve. This [event|https://support-admin.us1.prod.dog/admin/switch_handle_get/org_id/49875?next_url=%2Fevent%2Fevent%3Fid%3D5461877252275816396] details that the agent was started on host {{i-03dad52b414458fb1}}. However, in this [notebook|https://support-admin.us1.prod.dog/admin/switch_handle_get/org_id/49875?next_url=%2Fnotebook%2F217232%2Fsupport-metrics] you cannot query for this host at the time of this event. There are three hosts in this cluster & auto scaling group:\n\n* {{i-04ef510b2d1f2038f}}\n* {{i-0c8f4513bb31ad451}}\n* {{i-03dad52b414458fb1}} (host with issues)\n\nThe first two hosts seem to report as expected. The third host does not. It appears to be reporting as {{host:N/A}}. We were able to identify the host ID and searched org2 logs and noticed an influx of the following [errors|https://app.datadoghq.com/logs?cols=core_host%2Ctag_source%2Ccore_service&event&from_ts=1589817876737&index=&live=true&messageDisplay=inline&query=2428736878+%40org%3A49875&stream_sort=desc&to_ts=1589818776737]. Is there anything on Intake side preventing the resolution for this host?\n\n([reached out here|https://dd.slack.com/archives/C41N1AT8V/p1591284160362700])\n\n----\n\n*Internal Investigation*\n\nCreation time: Wed, 06 May 2020 13:03:22 +0100\n\nThis lines up with then these three hosts came up. I believe {{host:N/A}} is our host:\n\n!image-20200604-144645.png|width=900,height=348!\n\n[https://cl.ly/5d9c6c99b30d|https://cl.ly/5d9c6c99b30d]\n\nNon-working host({{i-03dad52b414458fb1}}):\n\nSome trace level log lines showing successful service check submission with hostnames:\n\n{noformat}2020-05-26 16:25:10 UTC | CORE | TRACE | (pkg/aggregator/sender.go:340 in ServiceCheck) | Service check submitted:  datadog.agent.check_status :  OK  for hostname:  i-03dad52b414458fb1  tags:  [check:cpu]{noformat}\n\nHowever, metric submissions don\u2019t contain a hostname:\n\n{noformat}2020-05-26 16:25:10 UTC | CORE | TRACE | (pkg/aggregator/sender.go:233 in sendMetricSample) | Gauge  sample:  system.cpu.guest :  0  for hostname:    tags:  []{noformat}\n\nSince hostname is not being assigned at agent level we might want agent team input. Following up with intake first.\n\nI am unable to find any differences in configuration between the two hosts.\n\nOrg 2 error logs when looking up the problematic host by host ID:\n\n* [https://app.datadoghq.com/logs?cols=core_host%2Ctag_source%2Ccore_service&event&from_ts=1589817876737&index=&live=true&messageDisplay=inline&query=2428736878+%40org%3A49875&stream_sort=desc&to_ts=1589818776737|https://app.datadoghq.com/logs?cols=core_host%2Ctag_source%2Ccore_service&event&from_ts=1589817876737&index=&live=true&messageDisplay=inline&query=2428736878+%40org%3A49875&stream_sort=desc&to_ts=1589818776737]\n* [Notebook|https://support-admin.us1.prod.dog/admin/switch_handle_get/org_id/49875?next_url=%2Fnotebook%2F217232%2Fsupport-metrics]",
+            "updateAuthor": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b4a06a70af10ceed32792",
+                "accountId": "5d4b4a06a70af10ceed32792",
+                "emailAddress": "mike.carlos@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/48",
+                    "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/24",
+                    "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/16",
+                    "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/32"
+                },
+                "displayName": "Mike Carlos",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "created": "2020-06-04T10:46:58.280-0400",
+            "updated": "2020-06-04T11:22:53.646-0400",
+            "jsdPublic": true
+        },
+        {
+            "self": "https://datadoghq.atlassian.net/rest/api/2/issue/86611/comment/140428",
+            "id": "140428",
+            "author": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b452ac54e920cf3b8065a",
+                "accountId": "5d4b452ac54e920cf3b8065a",
+                "emailAddress": "vianney.tran@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "24x24": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "16x16": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "32x32": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png"
+                },
+                "displayName": "Vianney Tran",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "body": "Interesting\\! Thanks a lot for the investigation, it speeds up things a lot (especially the log line in {{contexts-rewriter}}, good catch).\n\n\n\nI looked at the data in the host backend:\n\n{noformat}> SELECT * FROM vs17107.host WHERE org_id=49875 AND name='i-03dad52b414458fb1';\n     id     | org_id |        name         |          created           |          modified\n------------+--------+---------------------+----------------------------+----------------------------\n 2428945707 |  49875 | i-03dad52b414458fb1 | 2020-05-06 12:04:11.711276 | 2020-05-06 12:04:11.711276\n(1 row)\n> SELECT * FROM vs17107.host_alias  WHERE host_id=2428945707;\n org_id | host_id | name | created | modified\n--------+---------+------+---------+----------\n(0 rows){noformat}\n\nYou can see the host has been created but not the aliases, that\u2019s why the backend cannot attach the data.\n\nDigging into why the aliases are not set\u2026",
+            "updateAuthor": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b452ac54e920cf3b8065a",
+                "accountId": "5d4b452ac54e920cf3b8065a",
+                "emailAddress": "vianney.tran@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "24x24": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "16x16": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "32x32": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png"
+                },
+                "displayName": "Vianney Tran",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "created": "2020-06-04T11:51:20.562-0400",
+            "updated": "2020-06-04T11:51:20.562-0400",
+            "jsdPublic": true
+        },
+        {
+            "self": "https://datadoghq.atlassian.net/rest/api/2/issue/86611/comment/140447",
+            "id": "140447",
+            "author": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b452ac54e920cf3b8065a",
+                "accountId": "5d4b452ac54e920cf3b8065a",
+                "emailAddress": "vianney.tran@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "24x24": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "16x16": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "32x32": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png"
+                },
+                "displayName": "Vianney Tran",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "body": "Seems like we got hit by this bug.\n\nGoing to fix it manually for the customer and prioritize the other bug.\n\n\n\nFYI it looks like because at some point at the beginning the canonical host name was set to empty (which should be forbidden) and then it couldn\u2019t change\n\n\n\n{noformat}dogdataprod=> SELECT * FROM vs17107.host WHERE id=2428736878;\n     id     | org_id | name |          created          |         modified\n------------+--------+------+---------------------------+---------------------------\n 2428736878 |  49875 |      | 2020-05-06 11:03:47.60662 | 2020-05-06 11:03:47.60662{noformat}\n\n\n\n{noformat}dogdataprod=> SELECT * FROM vs17107.host_alias  WHERE host_id=2428736878;\n org_id |  host_id   |                                 name                                  |          created          |         modified\n--------+------------+-----------------------------------------------------------------------+---------------------------+---------------------------\n  49875 | 2428736878 | ip-10-84-3-178.us-west-2.compute.internal-integrate-events-production | 2020-05-06 12:04:30.91824 | 2020-05-06 12:04:30.91824\n  49875 | 2428736878 | ip-10-84-3-178.us-west-2.compute.internal                             | 2020-05-06 12:04:30.91824 | 2020-05-06 12:04:30.91824\n  49875 | 2428736878 | i-03dad52b414458fb1                                                   | 2020-05-06 12:04:30.91824 | 2020-05-06 12:04:30.91824\n  49875 | 2428736878 |                                                                       | 2020-05-06 12:04:30.91824 | 2020-05-06 12:04:30.91824\n(4 rows){noformat}",
+            "updateAuthor": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b452ac54e920cf3b8065a",
+                "accountId": "5d4b452ac54e920cf3b8065a",
+                "emailAddress": "vianney.tran@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "24x24": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "16x16": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "32x32": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png"
+                },
+                "displayName": "Vianney Tran",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "created": "2020-06-04T12:08:28.335-0400",
+            "updated": "2020-06-04T12:08:28.335-0400",
+            "jsdPublic": true
+        },
+        {
+            "self": "https://datadoghq.atlassian.net/rest/api/2/issue/86611/comment/140609",
+            "id": "140609",
+            "author": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b452ac54e920cf3b8065a",
+                "accountId": "5d4b452ac54e920cf3b8065a",
+                "emailAddress": "vianney.tran@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "24x24": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "16x16": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "32x32": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png"
+                },
+                "displayName": "Vianney Tran",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "body": "This is now fixed (see bad host, data appear after 1pm).\n\nIn term of communication to the customer, you can say that they helped us find a more recent occurence of a bug that we were chasing for a long time.\n\nThat bug only happened 4 times (that we know of) since 2017 and it\u2019s basically, on host creation, there can be a race condition where we set the hostname to empty (it\u2019s an invalid hostname) and then it is not editable since it\u2019s invalid. We are fixing it ([https://datadoghq.atlassian.net/browse/METRICSIN-416|https://datadoghq.atlassian.net/browse/METRICSIN-416|smart-link] , in our backlog not yet started) as well as adding a constraint on our database to ensure it cannot be added as a hostname.\n\n\n\nIf you look at creation date, the empty hostname was inserted at 11:03am, then correct hostname at 12:02pm (along with aliases) so our guess is another system than metrics intake set the empty hostname. (What\u2019s weird is the event shows the agent started at 11:35:04 which coincide with neither date)",
+            "updateAuthor": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b452ac54e920cf3b8065a",
+                "accountId": "5d4b452ac54e920cf3b8065a",
+                "emailAddress": "vianney.tran@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "24x24": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "16x16": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png",
+                    "32x32": "https://secure.gravatar.com/avatar/8d0023d4bbdd1905613191dcf0aacf29?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FVT-5.png"
+                },
+                "displayName": "Vianney Tran",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "created": "2020-06-04T15:49:01.375-0400",
+            "updated": "2020-06-04T15:49:01.375-0400",
+            "jsdPublic": true
+        },
+        {
+            "self": "https://datadoghq.atlassian.net/rest/api/2/issue/86611/comment/140646",
+            "id": "140646",
+            "author": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b4a06a70af10ceed32792",
+                "accountId": "5d4b4a06a70af10ceed32792",
+                "emailAddress": "mike.carlos@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/48",
+                    "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/24",
+                    "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/16",
+                    "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/32"
+                },
+                "displayName": "Mike Carlos",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "body": "Thanks Vianney\\!\n\nHey [~accountid:5d4b47605b8ea70c7e4f48a7] \ud83d\udc4b \n\nFeel free to relay the following over to the customer in your own language:\n\nIt looks like we were able identify that this case is closely related to a rare bug where there can be a race condition when the set hostname is empty on host creation (an invalid hostname). Then it is not editable since it\u2019s invalid. This results in a failure to create an appropriate alias. Let\u2019s let the customer know that they actually helped us identify this issue on our end as the bug only happened 4 times (that we know of) since 2017. So it\u2019s been a difficult one to keep our eyes on. We very much appreciate their patience with us on this one. We just put out a short-term fix and the host seems to be showing as expected now:\n\n!image-20200604-203458.png|width=878,height=296!\n\nWe have put in place to work on a longer term fix and will update here accordingly. Let us know if this works out for the customer\\!",
+            "updateAuthor": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b4a06a70af10ceed32792",
+                "accountId": "5d4b4a06a70af10ceed32792",
+                "emailAddress": "mike.carlos@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/48",
+                    "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/24",
+                    "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/16",
+                    "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/32"
+                },
+                "displayName": "Mike Carlos",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "created": "2020-06-04T16:39:29.362-0400",
+            "updated": "2020-06-04T16:39:29.362-0400",
+            "jsdPublic": true
+        },
+        {
+            "self": "https://datadoghq.atlassian.net/rest/api/2/issue/86611/comment/140805",
+            "id": "140805",
+            "author": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b47605b8ea70c7e4f48a7",
+                "accountId": "5d4b47605b8ea70c7e4f48a7",
+                "emailAddress": "homere.faivre@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://secure.gravatar.com/avatar/5b576d42d8bf20a2588d9edf8e055026?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FHF-6.png",
+                    "24x24": "https://secure.gravatar.com/avatar/5b576d42d8bf20a2588d9edf8e055026?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FHF-6.png",
+                    "16x16": "https://secure.gravatar.com/avatar/5b576d42d8bf20a2588d9edf8e055026?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FHF-6.png",
+                    "32x32": "https://secure.gravatar.com/avatar/5b576d42d8bf20a2588d9edf8e055026?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FHF-6.png"
+                },
+                "displayName": "Hom\u00e8re Faivre",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "body": "Thanks [~accountid:5d4b4a06a70af10ceed32792] \\! great news\\! I\u2019ve let them know, I\u2019ll see if they have any follow up questions.\n\nIn the meantime, when you say \u201cset hostname is empty\u201d , do you know how it could\u2019ve been set that way in this case? Is this something that can happen again?",
+            "updateAuthor": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b47605b8ea70c7e4f48a7",
+                "accountId": "5d4b47605b8ea70c7e4f48a7",
+                "emailAddress": "homere.faivre@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://secure.gravatar.com/avatar/5b576d42d8bf20a2588d9edf8e055026?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FHF-6.png",
+                    "24x24": "https://secure.gravatar.com/avatar/5b576d42d8bf20a2588d9edf8e055026?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FHF-6.png",
+                    "16x16": "https://secure.gravatar.com/avatar/5b576d42d8bf20a2588d9edf8e055026?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FHF-6.png",
+                    "32x32": "https://secure.gravatar.com/avatar/5b576d42d8bf20a2588d9edf8e055026?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FHF-6.png"
+                },
+                "displayName": "Hom\u00e8re Faivre",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "created": "2020-06-05T05:23:42.305-0400",
+            "updated": "2020-06-05T05:23:42.305-0400",
+            "jsdPublic": true
+        },
+        {
+            "self": "https://datadoghq.atlassian.net/rest/api/2/issue/86611/comment/142505",
+            "id": "142505",
+            "author": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b4a06a70af10ceed32792",
+                "accountId": "5d4b4a06a70af10ceed32792",
+                "emailAddress": "mike.carlos@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/48",
+                    "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/24",
+                    "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/16",
+                    "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/32"
+                },
+                "displayName": "Mike Carlos",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "body": "Hey [~accountid:5d4b47605b8ea70c7e4f48a7] \ud83d\udc4b \n\nIn particular there\u2019s no way for us to really track the how of the occurrence. This could have come from a number of different possibilities. Almost all data sent to DD; whether it be metrics, events, logs, or traces all have and expect a host name tag or correlation. It\u2019s likely that one of these sources were submitted with an empty name / invalid in turn having an effect on how our database creates the correlations with all other data sources. Rather than change how the host names are assigned for all of these data sources. We plan to add safeguards in our database to account for these edge cases.",
+            "updateAuthor": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b4a06a70af10ceed32792",
+                "accountId": "5d4b4a06a70af10ceed32792",
+                "emailAddress": "mike.carlos@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/48",
+                    "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/24",
+                    "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/16",
+                    "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/32"
+                },
+                "displayName": "Mike Carlos",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "created": "2020-06-09T12:18:02.984-0400",
+            "updated": "2020-06-09T12:18:02.984-0400",
+            "jsdPublic": true
+        },
+        {
+            "self": "https://datadoghq.atlassian.net/rest/api/2/issue/86611/comment/147386",
+            "id": "147386",
+            "author": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b4a06a70af10ceed32792",
+                "accountId": "5d4b4a06a70af10ceed32792",
+                "emailAddress": "mike.carlos@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/48",
+                    "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/24",
+                    "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/16",
+                    "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/32"
+                },
+                "displayName": "Mike Carlos",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "body": "Hey [~accountid:5d4b47605b8ea70c7e4f48a7] \ud83d\udc4b \n\nIt looks like a more permanent fix has been rolled out here. It looks like this case has been closed out already. I\u2019m going to go ahead and move this over to done. Feel free to move it back if anything comes up\\!",
+            "updateAuthor": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b4a06a70af10ceed32792",
+                "accountId": "5d4b4a06a70af10ceed32792",
+                "emailAddress": "mike.carlos@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/48",
+                    "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/24",
+                    "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/16",
+                    "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/32"
+                },
+                "displayName": "Mike Carlos",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "created": "2020-06-18T17:13:02.893-0400",
+            "updated": "2020-06-18T17:13:02.893-0400",
+            "jsdPublic": true
+        },
+        {
+            "self": "https://datadoghq.atlassian.net/rest/api/2/issue/86611/comment/147388",
+            "id": "147388",
+            "author": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b4a06a70af10ceed32792",
+                "accountId": "5d4b4a06a70af10ceed32792",
+                "emailAddress": "mike.carlos@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/48",
+                    "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/24",
+                    "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/16",
+                    "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/32"
+                },
+                "displayName": "Mike Carlos",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "body": "Fix has been pushed out",
+            "updateAuthor": {
+                "self": "https://datadoghq.atlassian.net/rest/api/2/user?accountId=5d4b4a06a70af10ceed32792",
+                "accountId": "5d4b4a06a70af10ceed32792",
+                "emailAddress": "mike.carlos@datadoghq.com",
+                "avatarUrls": {
+                    "48x48": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/48",
+                    "24x24": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/24",
+                    "16x16": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/16",
+                    "32x32": "https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/5d4b4a06a70af10ceed32792/8a627e41-2606-4826-8947-47f49dd7924f/32"
+                },
+                "displayName": "Mike Carlos",
+                "active": true,
+                "timeZone": "America/New_York",
+                "accountType": "atlassian"
+            },
+            "created": "2020-06-18T17:13:19.303-0400",
+            "updated": "2020-06-18T17:13:19.303-0400",
+            "jsdPublic": true
+        }
+    ]
+}
