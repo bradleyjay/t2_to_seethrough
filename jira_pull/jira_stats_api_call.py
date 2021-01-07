@@ -243,183 +243,76 @@ def get_and_parse_changelog(issue, auth):
     return issue
 
 
-def jira_query(board_name, jqlquery, nb_days_before, window_end_date, name):
+def calculate_ttft(issue, auth, ttft_dict):
 
-    # prep, make the API call
+    #########################################
+    ## TTFT SECTION
+    ## Parse comments to assess touches
+    ## (#REFACTOR)
+    #########################################
+
+    # can't check for non-reporer comments without reporter email. Move this lower if
+    # we end up using comments for touch count or something, only needed for TTFT
+
+    # API Call for Comments
+    # Format: "https://datadoghq.atlassian.net/rest/api/2/issue/81840/comment"
     url = (
-        "https://datadoghq.atlassian.net/rest/api/3/search?jql="
-        + jqlquery
+        "https://datadoghq.atlassian.net/rest/api/2/issue/"
+        + issue["issue_id"]
+        + "/comment"
         # + "&maxResults=0"
     )
 
-    auth = HTTPBasicAuth(os.environ.get("JIRA_EMAIL"), os.environ.get("JIRA_API_KEY"))
-    response = requests.request("GET", url, headers=headers, auth=auth)
+    comments_response = requests.request("GET", url, headers=headers, auth=auth)
+    delta_time = None
 
-    if debug_test is True:
-        print("**jira_query**:")
-        print(board_name, jqlquery, nb_days_before, window_end_date, name)
-        print("**jira_json**")
-        print(response.json())
-        print("\n\n\n\n\n\n")
+    if comments_response and "comments" in comments_response.json():
+        for comment in comments_response.json()["comments"]:
 
-    # error out if response wasn't clean
-    if str(response) != "<Response [200]>":
-        return print("Error from API: " + str(response) + " for: \n" + jqlquery)
+            # comments are a LIST, ordered by time
+            # iterate til author != issue author
+            if comment["author"]["emailAddress"] == issue["issue_reporter"]:
+                continue
 
-    # prepare to write
-    concerneddate = window_end_date - datetime.timedelta(days=nb_days_before)
-    dconcerneddate = concerneddate.strftime("%m/%d/%Y")
-    total = response.json()["total"]
+            # take date, parse to simpler date (this'll be our TTFT dict key)
+            raw_comment_date = comment["created"]
 
-    # max returned issues is 100 - throw a warning if that's the case
-    if int(total) >= 100:
-        print(
-            "\nWarning: Max Issues returned - possible truncation on "
-            + str(dconcerneddate)
-            + ". Value is "
-            + str(total)
-        )
-
-    # debug mode - print raw JSON response to file, appending each day.
-    if debug is True:
-
-        f = open(testdump_filename, "a+")
-        f.write(json.dumps(response.json(), indent=4, separators=(",", ": ")))
-        f.close()
-
-    # write issue count
-    f = open(filename, "a+")
-    # f.write(json.dumps(response.json(), indent=4, separators=(",", ": ")))
-    f.write("%s;%s;%d;%s  \r\n" % (name, dconcerneddate, total, board_name))
-    f.close()
-
-    # TTFL
-    # unpack issues into list: need issue id, created date, creator
-
-    for issue in response.json()["issues"]:
-        issue_id = issue["id"]
-        issue_key = issue["key"]
-        try:
-            issue_reporter = issue["fields"]["reporter"]["emailAddress"]
-        except:
-            print("\n\n Trouble here! No issue_reporter \n\n")
-            print(issue_key)
-            issue_reporter = None
-            # continue
-
-        # pull created date. Format: 2020-05-25T21:04:18.666-0400
-        raw_issue_created = issue["fields"]["created"]
-
-        # parse to datetime object (includes tz)
-        issue_created = datetime.datetime.strptime(
-            raw_issue_created, "%Y-%m-%dT%H:%M:%S.%f%z"
-        )
-
-        # default lifetime
-        default_lifetime = (cutoff_datetime - issue_created).days
-
-        # create dict of dicts: each issue's a dict, then that dict has the following:
-        issues_dict[issue_id] = {
-            "issue_id": issue_id,
-            "issue_reporter": issue_reporter,
-            "issue_created": issue_created,
-            "issue_key": issue_key,
-            "reached_eng": 0,
-            "lifetime": default_lifetime,  # update this to issue today - creatoin datee (the max)
-        }
-
-        # add fieldbreakdowns (AGENT only, at this time)
-        if board_name == "AGENT":
-            # print("dict before:" + str(issues_dict[issue_id]))
-            issues_dict[issue_id] = get_field_breakdowns(issues_dict[issue_id], issue)
-            # print("dict after:" + str(issues_dict[issue_id]))
-
-        # changelog: Get was-eng-hit and lifetime
-
-        issues_dict[issue_id] = get_and_parse_changelog(issues_dict[issue_id], auth)
-        if (
-            issues_dict[issue_id]["lifetime"]
-            != default_lifetime
-            #
-        ):
-            done_issues_list.append(issues_dict[issue_id])
-        #########################################
-        ## TTFT SECTION
-        ## Parse comments to assess touches
-        ## (#REFACTOR)
-        #########################################
-
-        # can't check for non-reporer comments without reporter email. Move this lower if
-        # we end up using comments for touch count or something, only needed for TTFT
-
-        if issue_reporter is not None:
-            # API Call for Comments
-            # Format: "https://datadoghq.atlassian.net/rest/api/2/issue/81840/comment"
-            url = (
-                "https://datadoghq.atlassian.net/rest/api/2/issue/"
-                + issue_id
-                + "/comment"
-                # + "&maxResults=0"
+            # get time delta for (comment created - issue created)
+            # includes tz
+            comment_date = datetime.datetime.strptime(
+                raw_comment_date, "%Y-%m-%dT%H:%M:%S.%f%z"
             )
+            delta_time = (comment_date - issue["issue_created"]).days
 
-            comments_response = requests.request("GET", url, headers=headers, auth=auth)
-            delta_time = None
+            # if we're storing TTFT by CREATION DATE, swap the date here now that deltaT is calculated
+            if ttft_storebytouch is False:
+                comment_date = issue["issue_created"]
 
-            if comments_response and "comments" in comments_response.json():
-                for comment in comments_response.json()["comments"]:
+            # -> append that to dict's value, under TTFT date
+            # first check if its there. Yes? Append.
+            if str(comment_date.date()) in ttft_dict:
 
-                    # comments are a LIST, ordered by time
-                    # iterate til author != issue author
-                    if comment["author"]["emailAddress"] == issue_reporter:
-                        continue
+                ttft_dict[str(comment_date.date())].append(
+                    (issue["issue_key"], delta_time)
+                )
 
-                    # take date, parse to simpler date (this'll be our TTFT dict key)
-                    raw_comment_date = comment["created"]
+            else:
 
-                    # get time delta for (comment created - issue created)
-                    # includes tz
-                    comment_date = datetime.datetime.strptime(
-                        raw_comment_date, "%Y-%m-%dT%H:%M:%S.%f%z"
-                    )
-                    delta_time = (comment_date - issue_created).days
+                ttft_dict[str(comment_date.date())] = [(issue["issue_key"], delta_time)]
+                break
 
-                    # if we're storing TTFT by CREATION DATE, swap the date here now that deltaT is calculated
-                    if ttft_storebytouch is False:
-                        comment_date = issue_created
+        # handling for no comment matching (orphaned case)
+        if delta_time == None:
+            # theres a LOT of these.... #fixme
+            print("\nNo matching comment for issue " + str(issue["issue_key"]))
+            delta_time = (window_end_date - issue["issue_created"].date()).days
+            ttft_dict[str(issue["issue_created"].date())] = [
+                (issue["issue_key"], delta_time)
+            ]
+            orphans.append([(issue["issue_key"], delta_time)])
 
-                    # -> append that to dict's value, under TTFT date
-                    # first check if its there. Yes? Append.
-                    if str(comment_date.date()) in ttft_dict:
+    return ttft_dict
 
-                        ttft_dict[str(comment_date.date())].append(
-                            (issue_key, delta_time)
-                        )
-
-                    else:
-
-                        ttft_dict[str(comment_date.date())] = [(issue_key, delta_time)]
-                        break
-
-                # handling for no comment matching (orphaned case)
-                if delta_time == None:
-                    # theres a LOT of these.... #fixme
-                    print("\nNo matching comment for issue " + str(issue_key))
-                    delta_time = (window_end_date - issue_created.date()).days
-                    ttft_dict[str(issue_created.date())] = [(issue_key, delta_time)]
-                    orphans.append([(issue_key, delta_time)])
-
-                # print("TTFT Dict:")
-                # print(ttft_dict)
-
-    test_issues_dict = issues_dict
-
-    if debug_test is True:
-        # test issues dict, just for testing
-
-        print("**test_issues_dict**")
-        print(test_issues_dict)
-
-    return ttft_dict, test_issues_dict
     """
 What we have above is a dict (ttft_dict) where the keys are the date of first touch, and the data
 is a list of tuples (issue key, the delta between creation date and first comment).
@@ -445,6 +338,169 @@ fill it in, end result should be a spreadsheet of every day, with data for every
 by not the requester", around line 154)
 
     """
+
+
+def jira_query(board_name, target_column, search_date, auth):
+
+    # prep, make the API call
+
+    # Update JQL queries:
+
+    # includes feature requests, if they started in Triage
+    # conservative: Escalation Batter won't show, because they'll create then later Batter=No
+    # issues now hidden by the DONE column do show up in this count!
+    # batter issues could be included by were batter, now aren't, same day. As an aside, there's LOTS of chaff in
+    # these boards. Over-filtering is probably good, especially for untouched issues.
+    # tl;dr grabs issues created on SEARCHED DATE
+
+    jqlquery = (
+        "project ="
+        + board_name
+        + ' and "For Escalation Batter?" =No AND ( status was "'
+        + target_column
+        + '"  during (startOfDay(-'
+        + str(search_date)
+        + ") ,endOfDay(-"
+        + str(search_date)
+        + ") ) AND  created >= startOfDay(-"
+        + str(search_date)
+        + ") AND created <= endOfDay(-"
+        + str(search_date)
+        + ")  )"
+    )
+
+    # build API call URL
+    url = (
+        "https://datadoghq.atlassian.net/rest/api/3/search?jql="
+        + jqlquery
+        # + "&maxResults=0"
+    )
+
+    api_response = requests.request("GET", url, headers=headers, auth=auth)
+
+    # if debug_test is True:
+    #     print("**jira_query**:")
+    #     print(board_name, jqlquery, nb_days_before, window_end_date, name)
+    #     print("**jira_json**")
+    #     print(response.json())
+    #     print("\n\n\n\n\n\n")
+
+    # error out if response wasn't clean
+    if str(api_response) != "<Response [200]>":
+        return print("Error from API: " + str(api_response) + " for: \n" + jqlquery)
+
+    return api_response
+
+
+# Refactor: new func for unpacking only
+def unpack_api_response(
+    board_name, nb_days_before, window_end_date, api_response, auth, ttft_dict
+):
+
+    """
+    First, we'll pull the number of issues as a whole, and write to file.
+
+    Then, we iterate through all issues in the response object. For each one,
+    we add it to the issues_dict, contribute to the changelog report, and 
+    tag breakdowns, and ttft before moving on to the next issue in the response.
+
+    When complete, we'll have processed every issue created on the current
+    iteration's day.
+
+    """
+
+    ################################
+    ## Generate Escalations Count ##
+    ################################
+
+    concerneddate = window_end_date - datetime.timedelta(days=nb_days_before)
+    dconcerneddate = concerneddate.strftime("%m/%d/%Y")
+    total = api_response.json()["total"]
+
+    # max returned issues is 100 - throw a warning if that's the case
+    if int(total) >= 100:
+        print(
+            "\nWarning: Max Issues returned - possible truncation on "
+            + str(dconcerneddate)
+            + ". Value is "
+            + str(total)
+        )
+
+    # write issue count to file
+    f = open(filename, "a+")
+    name = "New Issues"  # Refactor: this used to get passed, but only used here. There's a global name, that's for another report, and assigned directly at write time.
+    f.write("%s;%s;%d;%s  \r\n" % (name, dconcerneddate, total, board_name))
+    f.close()
+
+    ###########################
+    ### Prepare issues_dict ###
+    ###########################
+
+    # unpack issues into list: need issue id, created date, creator
+
+    for issue in api_response.json()["issues"]:
+        issue_id = issue["id"]
+        issue_key = issue["key"]
+        try:
+            issue_reporter = issue["fields"]["reporter"]["emailAddress"]
+        except:
+            print("\n\n Trouble here! No issue_reporter \n\n")
+            print(issue_key)
+            issue_reporter = None
+            # continue
+
+        # pull created date. Format: 2020-05-25T21:04:18.666-0400
+        raw_issue_created = issue["fields"]["created"]
+
+        # parse to datetime object (includes tz)
+        issue_created = datetime.datetime.strptime(
+            raw_issue_created, "%Y-%m-%dT%H:%M:%S.%f%z"
+        )
+
+        # default lifetime
+        default_lifetime = (cutoff_datetime - issue_created).days
+
+        # actually create issues_dict
+        # dict of dicts: each issue's a dict, then that dict has the following:
+        issues_dict[issue_id] = {
+            "issue_id": issue_id,
+            "issue_reporter": issue_reporter,
+            "issue_created": issue_created,
+            "issue_key": issue_key,
+            "reached_eng": 0,
+            "lifetime": default_lifetime,  # update this to issue today - creatoin datee (the max)
+        }
+
+        ################################################
+        ## Add to Field Breakdowns, Changelog reports ##
+        ################################################
+
+        if issue_reporter is not None:
+            ttft_dict = calculate_ttft(issues_dict[issue_id], auth, ttft_dict)
+
+        # add fieldbreakdowns (AGENT only, at this time)
+        if board_name == "AGENT":
+            # print("dict before:" + str(issues_dict[issue_id]))
+            issues_dict[issue_id] = get_field_breakdowns(issues_dict[issue_id], issue)
+            # print("dict after:" + str(issues_dict[issue_id]))
+
+        # changelog: Get was-eng-hit and lifetime
+
+        issues_dict[issue_id] = get_and_parse_changelog(issues_dict[issue_id], auth)
+        if (
+            issues_dict[issue_id]["lifetime"]
+            != default_lifetime
+            #
+        ):
+            done_issues_list.append(issues_dict[issue_id])
+
+    if debug_test is True:
+        # issues dict, just for testing
+
+        print("**issues_dict**")
+        print(issues_dict)
+
+    return issues_dict
 
 
 def fields_breakdown_report(
@@ -776,6 +832,8 @@ if __name__ == "__main__":
 
     print("\nQuerying: " + board_name)
 
+    auth = HTTPBasicAuth(os.environ.get("JIRA_EMAIL"), os.environ.get("JIRA_API_KEY"))
+
     # reporting_window = 10
     for nb_days_before in range(reporting_window, -1, -1):
 
@@ -784,39 +842,28 @@ if __name__ == "__main__":
 
         # really an Int (today already is a date)
         search_date = (today - window_end_date).days + nb_days_before
-        # Update JQL queries:
 
-        # includes feature requests, if they started in Triage
-        # conservative: Escalation Batter won't show, because they'll create then later Batter=No
-        # issues now hidden by the DONE column do show up in this count!
-        # batter issues could be included by were batter, now aren't, same day. As an aside, there's LOTS of chaff in
-        # these boards. Over-filtering is probably good, especially for untouched issues.
-        # tl;dr grabs issues created on SEARCHED DATE
-        QUERY_CREATED_IN_TRIAGE = (
-            "project ="
-            + board_name
-            + ' and "For Escalation Batter?" =No AND ( status was "'
-            + target_column
-            + '"  during (startOfDay(-'
-            + str(search_date)
-            + ") ,endOfDay(-"
-            + str(search_date)
-            + ") ) AND  created >= startOfDay(-"
-            + str(search_date)
-            + ") AND created <= endOfDay(-"
-            + str(search_date)
-            + ")  )"
-        )
-        ttft_dict, test_issues_dict = jira_query(
+        api_response = jira_query(
             # tl;dr grabs issues created on SEARCHED DATE -> stores under First Touch date
             board_name,
-            QUERY_CREATED_IN_TRIAGE,
-            nb_days_before,
-            window_end_date,
-            "New Issues",
+            target_column,
+            search_date,
+            auth,
         )
 
-        # report progress
+        # used to pass NAME to jira_qurey, used in print stp. why? it was "New Issues"
+        # what goes to and from this?
+        issues_dict = unpack_api_response(
+            board_name, nb_days_before, window_end_date, api_response, auth, ttft_dict
+        )
+
+        # debug mode - print raw JSON response to file, appending each day.
+        if debug is True:
+            f = open(testdump_filename, "a+")
+            f.write(json.dumps(api_response.json(), indent=4, separators=(",", ": ")))
+            f.close()
+
+        # report progress to command line
         percent_done = ((reporting_window - search_date) / reporting_window) * 100
         # percent_done =
         #     (1 - ((search_date - (window_end_date.days) / (window_end_date.days - reporting_window).days)
