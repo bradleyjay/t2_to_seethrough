@@ -43,7 +43,7 @@ print_reports = True
 
 # Set window of time to examine in days. First day chronologically = window_start
 reporting_window = 32  # 120 for 3 months (we use a rolling window 30 days in postproc, so need one month extra)
-window_end_date = datetime.date(2020, 11, 1)
+window_end_date = datetime.date(2020, 12, 1)
 
 window_end_datetime = datetime.datetime.combine(
     window_end_date, datetime.datetime.min.time()
@@ -57,6 +57,7 @@ window_start_no_rolling = window_start_datetime + datetime.timedelta(
 # Look forward in time from the window end an additional X days to watch for issue resolution, moving to eng, etc. Impacts changelog, fields breakdown data
 lookahead_days = 30  # leave this at 30.
 cutoff_datetime = window_end_datetime + datetime.timedelta(days=lookahead_days)
+
 
 # date math
 today = datetime.datetime.now(datetime.timezone.utc).date()  # now has tz
@@ -295,20 +296,36 @@ def calculate_ttft(issue, auth, ttft_dict):
                 ttft_dict[str(comment_date.date())].append(
                     (issue["issue_key"], delta_time)
                 )
-
+                break
             else:
 
                 ttft_dict[str(comment_date.date())] = [(issue["issue_key"], delta_time)]
                 break
 
-        # handling for no comment matching (orphaned case)
-        if delta_time == None:
+        # handling for no comment matching (orphaned case). Ignore if case is in 
+        # Done or Blocked, we just want cases we reached.
+        # print(issue)
+        if delta_time == None and (issue["status"] not in ["Done", "Blocked/Waiting on Customer"]):
             # theres a LOT of these.... #fixme
             print("\nNo matching comment for issue " + str(issue["issue_key"]))
-            delta_time = (window_end_date - issue["issue_created"].date()).days
-            ttft_dict[str(issue["issue_created"].date())] = [
-                (issue["issue_key"], delta_time)
-            ]
+            delta_time = (cutoff_datetime.date() - issue["issue_created"].date()).days
+            # ttft_dict[str(issue["issue_created"].date())] = [
+            #     (issue["issue_key"], delta_time)
+            # ]
+            # append an entry = to report time (update to include rest of window)
+            # ttft_dict[str(issue["issue_created"].date())].append(
+            #         (issue["issue_key"], delta_time))
+            
+            if str(issue["issue_created"].date()) in ttft_dict:
+
+                ttft_dict[str(issue["issue_created"].date())].append(
+                    (issue["issue_key"], delta_time))
+                
+                
+            else:
+
+                ttft_dict[str(issue["issue_created"].date())] = (issue["issue_key"], delta_time)
+
             orphans.append([(issue["issue_key"], delta_time)])
 
     return ttft_dict
@@ -460,6 +477,9 @@ def unpack_api_response(
         # default lifetime
         default_lifetime = (cutoff_datetime - issue_created).days
 
+        # issue status
+        issue_status = issue["fields"]['status']['name']
+
         # actually create issues_dict
         # dict of dicts: each issue's a dict, then that dict has the following:
         issues_dict[issue_id] = {
@@ -469,6 +489,7 @@ def unpack_api_response(
             "issue_key": issue_key,
             "reached_eng": 0,
             "lifetime": default_lifetime,  # update this to issue today - creatoin datee (the max)
+            "status": issue_status,
         }
 
         ################################################
@@ -853,9 +874,10 @@ if __name__ == "__main__":
 
         # used to pass NAME to jira_qurey, used in print stp. why? it was "New Issues"
         # what goes to and from this?
-        issues_dict = unpack_api_response(
-            board_name, nb_days_before, window_end_date, api_response, auth, ttft_dict
-        )
+        if api_response is not None:
+            issues_dict = unpack_api_response(
+                board_name, nb_days_before, window_end_date, api_response, auth, ttft_dict
+            )
 
         # debug mode - print raw JSON response to file, appending each day.
         if debug is True:
@@ -879,10 +901,11 @@ if __name__ == "__main__":
     # open file: prepare to write
     f = open(ttft_file, "a+")
     name = "TTFT"
-    for nb_days_before in range(reporting_window, -1, -1):
+    f.write("%s \r\n" % ("name;target_date;points_from_date; ttft_sum; ttft_avg; ttft_max; ttft_count; board_name"))
+    for nb_days_before in range((cutoff_datetime - window_start_datetime).days, -1, -1):
         # concerneddate = today - datetime.timedelta(days=nb_days_before)
         # this is how we account for offset. slightly different than the above, may want to match later
-        concerneddate = window_end_date - datetime.timedelta(days=nb_days_before)
+        concerneddate = cutoff_datetime.date() - datetime.timedelta(days=nb_days_before)
         target_date = str(concerneddate)
 
         # if present, pull and unpack
