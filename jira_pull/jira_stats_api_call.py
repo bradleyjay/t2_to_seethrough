@@ -24,7 +24,7 @@ except:
 
 ### Toggles
 # store by touch date, or card creation date?
-ttft_storebytouch = False
+ttft_storebytouch = False # default: False
 
 # testdump the API response if True
 # debug = True
@@ -42,7 +42,7 @@ print_reports = True
 ### Reporting window, datetime math
 
 # Set window of time to examine in days. First day chronologically = window_start
-reporting_window = 32  # 120 for 3 months (we use a rolling window 30 days in postproc, so need one month extra)
+reporting_window = 120  # 120 for 3 months (we use a rolling window 30 days in postproc, so need one month extra)
 window_end_date = datetime.date(2020, 12, 1)
 
 window_end_datetime = datetime.datetime.combine(
