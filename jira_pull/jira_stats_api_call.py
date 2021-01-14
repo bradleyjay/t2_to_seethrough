@@ -392,6 +392,7 @@ def jira_query(board_name, target_column, search_date, auth):
     return api_response
 
 
+
 # Refactor: new func for unpacking only
 def unpack_api_response(
     board_name, nb_days_before, window_end_date, api_response, auth, ttft_dict
@@ -834,43 +835,43 @@ if __name__ == "__main__":
 
     auth = HTTPBasicAuth(os.environ.get("JIRA_EMAIL"), os.environ.get("JIRA_API_KEY"))
 
-    # reporting_window = 10
-    for nb_days_before in range(reporting_window, -1, -1):
+    # # reporting_window = 10
+    # for nb_days_before in range(reporting_window, -1, -1):
 
-        # set date to search, accounting for date range desired (via window_end_date)
-        # search_date = (today - window_end_date) + nb_days_before
+    #     # set date to search, accounting for date range desired (via window_end_date)
+    #     # search_date = (today - window_end_date) + nb_days_before
 
-        # really an Int (today already is a date)
-        search_date = (today - window_end_date).days + nb_days_before
+    #     # really an Int (today already is a date)
+    search_date = (today - window_end_date).days + nb_days_before
 
-        api_response = jira_query(
-            # tl;dr grabs issues created on SEARCHED DATE -> stores under First Touch date
-            board_name,
-            target_column,
-            search_date,
-            auth,
-        )
+    api_response = jira_query2(
+        # tl;dr grabs issues created on SEARCHED DATE -> stores under First Touch date
+        board_name,
+        target_column,
+        search_date,
+        auth,
+    )
 
-        # used to pass NAME to jira_qurey, used in print stp. why? it was "New Issues"
-        # what goes to and from this?
-        issues_dict = unpack_api_response(
-            board_name, nb_days_before, window_end_date, api_response, auth, ttft_dict
-        )
+    # used to pass NAME to jira_qurey, used in print stp. why? it was "New Issues"
+    # what goes to and from this?
+    issues_dict = unpack_api_response(
+        board_name, nb_days_before, window_end_date, api_response, auth, ttft_dict
+    )
 
-        # debug mode - print raw JSON response to file, appending each day.
-        if debug is True:
-            f = open(testdump_filename, "a+")
-            f.write(json.dumps(api_response.json(), indent=4, separators=(",", ": ")))
-            f.close()
+    # debug mode - print raw JSON response to file, appending each day.
+    if debug is True:
+        f = open(testdump_filename, "a+")
+        f.write(json.dumps(api_response.json(), indent=4, separators=(",", ": ")))
+        f.close()
 
-        # report progress to command line
-        percent_done = ((reporting_window - search_date) / reporting_window) * 100
-        # percent_done =
-        #     (1 - ((search_date - (window_end_date.days) / (window_end_date.days - reporting_window).days)
-        # )) * 100  # math is right, search date is a number, so need to convert
+    # report progress to command line
+    percent_done = ((reporting_window - search_date) / reporting_window) * 100
+    # percent_done =
+    #     (1 - ((search_date - (window_end_date.days) / (window_end_date.days - reporting_window).days)
+    # )) * 100  # math is right, search date is a number, so need to convert
 
-        if percent_done % 10 <= 1:
-            print(board_name + ": " + str(percent_done) + "% \n", end=" ", flush=True)
+    if percent_done % 10 <= 1:
+        print(board_name + ": " + str(percent_done) + "% \n", end=" ", flush=True)
 
     # unpack TTFL (move all writes here?)
     ttft_file = str(board_name + "-ttft_" + filename_today + ".csv")
